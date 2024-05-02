@@ -1,10 +1,198 @@
+breed [dogs a-dog]
+breed [sheep a-sheep]
 
+dogs-own [
+  chromosome-for-x-mov
+  chromosome-for-y-mov
+]
+
+to setup
+  clear-all
+  create-sheep initial-number-sheep [
+    setxy random-xcor random-ycor
+    set color white
+    set shape "sheep"
+  ]
+  create-dogs initial-number-dogs [
+    setxy random-xcor random-ycor
+    set color red
+    set shape "wolf"
+    ; Set chromosome to be an array of the size of the number of dogs
+    set chromosome-for-x-mov n-values initial-number-dogs [(random-float 2) - 1]
+    set chromosome-for-y-mov n-values initial-number-dogs [(random-float 2) - 1]
+  ]
+  reset-ticks
+end
+
+to go
+  ask dogs [
+    move-dogs
+  ]
+  ask sheep [
+    move-sheep
+  ]
+  tick
+end
+
+; Default random walk implementation
+;to move-dogs
+;
+;  let possible-moves ["left" "right" "up" "down" "stay"]
+;  ; move left right, up, down or stay still
+;
+;  set movement one-of possible-moves
+;
+;  if movement = "left" [
+;    set xcor (xcor - 1)
+;  ]
+;  if movement = "right"[
+;    set xcor (xcor + 1)
+;  ]
+;  if movement = "up" [
+;    set ycor (ycor + 1)
+;  ]
+;  if movement = "down" [
+;    set ycor (ycor - 1)
+;  ]
+;
+;end
+to move-dogs
+
+  let norm-max count dogs
+  let norm-min count dogs * -1
+
+  let x-amount-to-move 0
+  foreach chromosome-for-x-mov [
+    c ->
+    ask dogs [
+      set x-amount-to-move (x-amount-to-move + (xcor * c))
+    ]
+  ]
+  ; normalise
+  set x-amount-to-move (2 * ((x-amount-to-move - norm-min ) / (norm-max - norm-min))) - 1
+  set xcor xcor + x-amount-to-move
+
+  let y-amount-to-move 0
+  foreach chromosome-for-y-mov [
+    c ->
+    ask dogs [
+      set y-amount-to-move (y-amount-to-move + (ycor * c))
+    ]
+  ]
+  ; normalise
+  set y-amount-to-move (2 * ((y-amount-to-move - norm-min ) / (norm-max - norm-min))) - 1
+  set ycor ycor + y-amount-to-move
+end
+
+to move-sheep
+
+ let current-patch patch-here
+ let adjacent-patches neighbors4
+
+ let adjacent-dog-free-patches adjacent-patches with [not any? dogs-here]
+ let adjacent-dog-patches adjacent-patches with [any? dogs-here]
+
+ let adjacent-sheep-free-patches adjacent-patches with [not any? other sheep-here]
+ let adjacent-sheep-patches adjacent-patches with [any? other sheep-here]
+
+ ; 1 - Move away from the dogs
+ if any? dogs-here [
+    if any? adjacent-dog-free-patches [
+      let target-patch one-of adjacent-dog-free-patches
+      face target-patch
+      fd 1
+    ]
+    stop
+ ]
+
+ ; 2 - If a dog is in an adjacent patch, move to one without
+ if any? adjacent-dog-patches [
+    let target-patch one-of adjacent-dog-free-patches
+    face target-patch
+    fd 1
+    stop
+ ]
+
+ ; 3 - Move to a patch with no sheep, but is adjacent to a patch with sheep
+ if any? adjacent-sheep-free-patches [
+    ; i.e. patches that contain no sheep but contain sheep in the adjacent four patches
+    let this-sheep self
+    ; Build up an array of adjacent patches to the sheep-free patches
+
+    let candidates []
+    ask adjacent-sheep-free-patches [
+      let adjacent neighbors4
+
+      ask adjacent [
+        let other-sheep-at-patch sheep-here with [self != this-sheep]
+
+        if any? other-sheep-at-patch [
+          set candidates lput self candidates
+        ]
+      ]
+    ]
+
+    ; Convert to a patch set
+    set candidates patch-set candidates
+    ; a candidate is eligable is there exists a sheep that is not the agent in it
+    ; Remove current patch from patch set
+    ask patch-here [set candidates other candidates]
+
+    if any? candidates[
+      let target-patch one-of candidates
+      face target-patch
+      fd 1
+      stop
+    ]
+ ]
+
+ ; 4 - Move to an adjacent patch containing fewer sheep than the current patch
+ let current-sheep-on-patch count sheep-here
+ let adjacent-with-less-sheep adjacent-patches with [count sheep-here < current-sheep-on-patch]
+ if any? adjacent-with-less-sheep [
+    let target-patch one-of adjacent-with-less-sheep
+    face target-patch
+    fd 1
+    stop
+ ]
+
+ ; 5 - a stochastic choice of action as follows: choose the same action as the last
+ ; one with 50% probability, or choose one of the remaining four actions, each with
+ ; 12.5% probability. For the first move, assume for all sheep that their previous
+ ; move was to stay put.
+  ; TODOODOOOOO!!!!!!!!!!
+end
+
+to-report calculate-score
+  let s count sheep
+
+  ; Get the mean of x and y
+  let mean-x 0
+  let mean-y 0
+  ask sheep [
+    set mean-x mean-x + xcor
+    set mean-y mean-y + ycor
+  ]
+  set mean-x mean-x / s
+  set mean-y mean-y / s
+
+  let sum-of-variation-x 0
+  let sum-of-variation-y 0
+  ask sheep [
+    set sum-of-variation-x sum-of-variation-x + ((xcor - mean-x) ^ 2)
+    set sum-of-variation-y sum-of-variation-y + ((ycor - mean-y) ^ 2)
+  ]
+
+  let score (sum-of-variation-x + sum-of-variation-y) / s
+
+  report score
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
-10
-647
-448
+412
+101
+1057
+747
 -1
 -1
 13.0
@@ -17,15 +205,108 @@ GRAPHICS-WINDOW
 1
 1
 1
--16
-16
--16
-16
-0
-0
+-24
+24
+-24
+24
+1
+1
 1
 ticks
 30.0
+
+BUTTON
+148
+235
+211
+268
+NIL
+setup\n
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+222
+314
+394
+347
+initial-number-sheep
+initial-number-sheep
+0
+100
+50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+44
+314
+216
+347
+initial-number-dogs
+initial-number-dogs
+0
+100
+5.0
+1
+1
+NIL
+HORIZONTAL
+
+BUTTON
+215
+235
+278
+268
+NIL
+go
+T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+MONITOR
+280
+426
+376
+471
+NIL
+calculate-score
+17
+1
+11
+
+PLOT
+67
+361
+267
+511
+Fitness over time
+Ticks
+Score
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"pen-0" 1.0 0 -16777216 true "" "plot calculate-score"
 
 @#$#@#$#@
 ## WHAT IS IT?
