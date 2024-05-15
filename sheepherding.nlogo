@@ -1,9 +1,20 @@
 breed [dogs a-dog]
 breed [sheep a-sheep]
 
+globals
+[
+  averageFitness
+  currentGeneration
+  best-individual-score
+  highest-avg-fitness
+]
+
 dogs-own [
-  chromosome-for-x-mov
-  chromosome-for-y-mov
+  chromosome ; Format one number from [1 to 9] representing the movement type
+             ;        one two digit number from [01, 50] representing the distance condition
+             ;        one number from [0, 1 or -1] representing whether to move backwards forwards or stay still
+  generation ;; what generation they are from
+  current-fitness;
 ]
 
 to setup
@@ -18,10 +29,15 @@ to setup
     set color red
     set shape "wolf"
     ; Set chromosome to be an array of the size of the number of dogs
-    set chromosome-for-x-mov n-values initial-number-dogs [(random-float 2) - 1]
-    set chromosome-for-y-mov n-values initial-number-dogs [(random-float 2) - 1]
+    setup-chromosome
+    set generation 0
+    set current-fitness 999999999999
   ]
   reset-ticks
+end
+
+to setup-chromosome
+  set chromosome (list (random 9) (random 50) ((random 2) - 1))
 end
 
 to go
@@ -31,8 +47,16 @@ to go
   ask sheep [
     move-sheep
   ]
-  mutate-chromosomes
+
+  if ticks > 0 [
+    if ticks mod cycleTime = 0
+    [
+      endOfCycle
+    ]
+  ]
+
   tick
+
 end
 
 ; Default random walk implementation
@@ -62,39 +86,22 @@ to move-dogs
   let norm-max count dogs
   let norm-min count dogs * -1
 
-  let x-amount-to-move 0
-  foreach chromosome-for-x-mov [
-    c ->
-    ask dogs [
-      set x-amount-to-move (x-amount-to-move + (xcor * c))
+  ; Unpack chromosome
+  let action-type item 0 chromosome
+  let distance-condition item 1 chromosome
+  let movement item 2 chromosome
+
+  ; TODO seperate action-type into multiple action types
+  if action-type < 10 [
+    let nearest-sheep min-one-of sheep [distance myself]
+    let distance-nearest 0
+    ask nearest-sheep [
+        set distance-nearest distance myself
     ]
-  ]
-  ; normalise
-  set x-amount-to-move (2 * ((x-amount-to-move - norm-min ) / (norm-max - norm-min))) - 1
-
-
-  ifelse xcor + x-amount-to-move > max-pxcor
-  [ set xcor max-pxcor ]
-  [ ifelse xcor + x-amount-to-move < min-pxcor
-    [ set xcor min-pxcor]
-  [set xcor xcor + x-amount-to-move]
-  ]
-
-  let y-amount-to-move 0
-  foreach chromosome-for-y-mov [
-    c ->
-    ask dogs [
-      set y-amount-to-move (y-amount-to-move + (ycor * c))
+    if distance-nearest < distance-condition [
+      face nearest-sheep
+      fd movement
     ]
-  ]
-  ; normalise
-  set y-amount-to-move (2 * ((y-amount-to-move - norm-min ) / (norm-max - norm-min))) - 1
-
-  ifelse ycor + y-amount-to-move > max-pycor
-  [set ycor max-pycor ]
-  [ifelse ycor + y-amount-to-move < min-pycor
-    [set ycor min-pycor]
-  [set ycor min-pycor]
   ]
 
 end
@@ -204,36 +211,141 @@ to-report calculate-score
   report score
 end
 
-; Mutation function
-to mutate-chromosomes
-  ask dogs [
-    ; Mutate y chromosome
-    let mutated-y-chrom []
-    foreach chromosome-for-y-mov [
-    c ->
-    ifelse random-float 1 < mutation-probability [
-      set mutated-y-chrom lput ((random-float 2) - 1) mutated-y-chrom
-    ] [
-      set mutated-y-chrom lput c mutated-y-chrom
-    ]
-    set chromosome-for-y-mov  mutated-y-chrom
-    ]
+; Fitness function
+; average distance to all sheep
+to-report fitness
+  let s count sheep
+  let distance-total 0
+  ask sheep [
+    set distance-total distance-total + distance myself ; Calculate distance from the dog to each sheep and add it to the total
+  ]
+  ; Calculate the average distance
+  if s > 0 [
+    let average-distance distance-total / s
+    report average-distance
+  ]
+  report 0 ; If there are no sheep, return 0
+end
 
-    ; Mutate x chromosome
-    let mutated-x-chrom []
-    foreach chromosome-for-x-mov [
-    c ->
-      ifelse random-float 1 < mutation-probability [
-        set mutated-x-chrom lput ((random-float 2) - 1) mutated-x-chrom
-      ] [
-        set mutated-x-chrom lput c mutated-x-chrom
-      ]
-    ]
-    set chromosome-for-x-mov  mutated-x-chrom
-    print chromosome-for-x-mov
-    print chromosome-for-y-mov
+; average distance to all sheep averaged across all dogs
+to-report average-fitness
+  let c count dogs
+  let total 0
+  ask dogs [
+     set total total + fitness
+  ]
+  if c > 0 [
+    report total / c
+  ]
+  report 0 ; if no dogs, report 0 , avoids div by 0
+end
+
+; GA METHODS
+
+to endOfCycle
+  let sumFitness 0
+  ask dogs [
+    let currentFitness fitness
+    set sumFitness (sumFitness + currentFitness)
+  ]
+  set averageFitness (sumFitness / initial-number-dogs)
+  print "Average Fitness: "
+  print averageFitness
+  if averageFitness > highest-avg-fitness [set highest-avg-fitness averageFitness]
+  hatchNextGeneration
+end
+
+to setup-dog
+  set generation currentGeneration
+
+  ;; when a new agent is created during the tournament phase it will have a chance to mutate chromosome data
+  ifelse generation = 0
+  [
+    setup-chromosome
+  ]
+  [
+    mutate-chromosome
   ]
 end
+
+to hatchNextGeneration
+
+  let tempSet (dogs with [generation = currentGeneration])
+
+  set currentGeneration (currentGeneration + 1)
+
+  ask tempSet
+  [
+    set current-fitness fitness
+    if current-fitness < best-individual-score [set best-individual-score current-fitness]
+  ]
+
+  ; stops div by 0
+  if averageFitness = 0 [ set averageFitness 1]
+
+  while[ count dogs < (initial-number-dogs * 2)]
+  [
+    ask tempSet
+    [
+      if count dogs < (initial-number-dogs * 2)
+      [
+
+        if (current-fitness / averageFitness) > random-float 1
+        [
+          hatch-dogs 1 [setup-dog
+          set color yellow]
+        ]
+      ]
+    ]
+  ]
+  ask tempSet [die]
+
+  ;crossOver
+end
+
+;to procreate
+;  if energy > (2 * cost-of-offspring) [
+;    hatch 1 [
+;      set energy cost-of-offspring
+;      set color white
+;    ]
+;    set energy energy - cost-of-offspring
+;  ]
+;end
+
+
+
+; Mutation function
+to mutate-chromosome
+
+  let mutated-chrom []
+
+  ; potentially apply mutation to gene 1 - action number 1-9
+  ifelse random-float 1 < mutation-probability [
+    set mutated-chrom lput (random 9) mutated-chrom
+  ] [
+    set mutated-chrom lput item 0 chromosome mutated-chrom
+  ]
+
+  ; potentially apply mutation to gene 2 - distance condition 1-50
+  ifelse random-float 1 < mutation-probability [
+    set mutated-chrom lput (random 50) mutated-chrom
+  ] [
+    set mutated-chrom lput item 1 chromosome mutated-chrom
+  ]
+
+  ; potentially apply mutation to gene 3 - distance amount -1, 0 or 1
+  ifelse random-float 1 < mutation-probability [
+    set mutated-chrom lput ((random 2) - 1) mutated-chrom
+  ] [
+    set mutated-chrom lput item 2 chromosome mutated-chrom
+  ]
+
+  set chromosome mutated-chrom
+
+  print chromosome
+end
+
 
 ;; Reproduction and crossover
 ;to-report reproduce [parents]
@@ -354,24 +466,6 @@ calculate-score
 1
 11
 
-PLOT
-67
-361
-267
-511
-Fitness over time
-Ticks
-Score
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"pen-0" 1.0 0 -16777216 true "" "plot calculate-score"
-
 SLIDER
 40
 172
@@ -398,6 +492,157 @@ mutation-probability
 1
 1.0
 0.01
+1
+NIL
+HORIZONTAL
+
+PLOT
+67
+361
+267
+511
+Score over time
+Ticks
+Score
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"pen-0" 1.0 0 -16777216 true "" "plot calculate-score"
+
+PLOT
+1107
+26
+1307
+176
+Fitness Over Time Dog 0
+Ticks
+Fitness
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot fitness turtle 50"
+
+PLOT
+1108
+180
+1308
+330
+Fitness Over Time Dog 1
+Ticks
+Fitness
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot fitness turtle 51"
+
+PLOT
+1108
+338
+1308
+488
+Fitness Over Time Dog 2
+Ticks
+Fitness
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot fitness turtle 52"
+
+PLOT
+1108
+494
+1308
+644
+Fitness Over Time Dog 3
+Ticks
+Fitness
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot fitness turtle 53"
+
+PLOT
+1110
+647
+1310
+797
+Fitness Over Time Dog 4
+Ticks
+Fitness
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot fitness turtle 54"
+
+PLOT
+64
+546
+264
+696
+Average Dog Fitness
+Ticks
+Average Fitness
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot average-fitness"
+
+TEXTBOX
+81
+530
+231
+548
+NIL
+11
+0.0
+1
+
+SLIDER
+184
+939
+356
+972
+cycleTime
+cycleTime
+0
+100
+10.0
+1
 1
 NIL
 HORIZONTAL
@@ -744,7 +989,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.4.0
+NetLogo 6.3.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
