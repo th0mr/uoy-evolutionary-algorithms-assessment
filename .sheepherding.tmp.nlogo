@@ -31,6 +31,7 @@ to go
   ask sheep [
     move-sheep
   ]
+  mutate-chromosomes
   tick
 end
 
@@ -70,7 +71,14 @@ to move-dogs
   ]
   ; normalise
   set x-amount-to-move (2 * ((x-amount-to-move - norm-min ) / (norm-max - norm-min))) - 1
-  set xcor xcor + x-amount-to-move
+
+
+  ifelse xcor + x-amount-to-move > max-pxcor
+  [ set xcor max-pxcor ]
+  [ ifelse xcor + x-amount-to-move < min-pxcor
+    [ set xcor min-pxcor]
+  [set xcor xcor + x-amount-to-move]
+  ]
 
   let y-amount-to-move 0
   foreach chromosome-for-y-mov [
@@ -81,7 +89,14 @@ to move-dogs
   ]
   ; normalise
   set y-amount-to-move (2 * ((y-amount-to-move - norm-min ) / (norm-max - norm-min))) - 1
-  set ycor ycor + y-amount-to-move
+
+  ifelse ycor + y-amount-to-move > max-pcor
+  [set ycor max-pycor ]
+  [ifelse ycor + y-amount-to-move < min-pxcor
+    [set ycor min-pycor]
+  [set ycor min-pycor]
+  ]
+
 end
 
 to move-sheep
@@ -163,6 +178,7 @@ to move-sheep
   ; TODOODOOOOO!!!!!!!!!!
 end
 
+; Score / fitness function
 to-report calculate-score
   let s count sheep
 
@@ -187,6 +203,54 @@ to-report calculate-score
 
   report score
 end
+
+; Mutation function
+to mutate-chromosomes
+  ask dogs [
+    ; Mutate y chromosome
+    let mutated-y-chrom []
+    foreach chromosome-for-y-mov [
+    c ->
+    ifelse random-float 1 < mutation-probability [
+      set mutated-y-chrom lput ((random-float 2) - 1) mutated-y-chrom
+    ] [
+      set mutated-y-chrom lput c mutated-y-chrom
+    ]
+    set chromosome-for-y-mov  mutated-y-chrom
+    ]
+
+    ; Mutate x chromosome
+    let mutated-x-chrom []
+    foreach chromosome-for-x-mov [
+    c ->
+      ifelse random-float 1 < mutation-probability [
+        set mutated-x-chrom lput ((random-float 2) - 1) mutated-x-chrom
+      ] [
+        set mutated-x-chrom lput c mutated-x-chrom
+      ]
+    ]
+    set chromosome-for-x-mov  mutated-x-chrom
+    print chromosome-for-x-mov
+    print chromosome-for-y-mov
+  ]
+end
+
+;; Reproduction and crossover
+;to-report reproduce [parents]
+;  let offspring []
+;  while [count offspring < count parents] [
+;    let parent1 random parents
+;    let parent2 random parents
+;    ifelse random-float 1 < crossover-probability [
+;      let child crossover-lists [position myself] of parent1 [position myself] of parent2
+;      set offspring lput child offspring
+;    ] [
+;      let child reproduce-without-crossover parent1 parent2
+;      set offspring lput child offspring
+;    ]
+;  ]
+;  report offspring
+;end
 @#$#@#$#@
 GRAPHICS-WINDOW
 412
@@ -202,8 +266,8 @@ GRAPHICS-WINDOW
 1
 1
 0
-1
-1
+0
+0
 1
 -24
 24
@@ -307,6 +371,36 @@ false
 "" ""
 PENS
 "pen-0" 1.0 0 -16777216 true "" "plot calculate-score"
+
+SLIDER
+40
+172
+212
+205
+crossover-probability
+crossover-probability
+0
+1
+0.5
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+215
+173
+387
+206
+mutation-probability
+mutation-probability
+0
+1
+1.0
+0.01
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
