@@ -9,20 +9,27 @@ globals
   highest-avg-fitness
 ]
 
+sheep-own [
+  last-direction; move taken last tick
+]
+
 dogs-own [
-  chromosome ; Format one number from [1 to 9] representing the movement type
-             ;        one two digit number from [01, 50] representing the distance condition
-             ;        one number from [0, 1 or -1] representing whether to move backwards forwards or stay still
+  chromosome ; TODO - EXPLAIN CHROMOSOME
   generation ;; what generation they are from
   current-fitness;
+  current-lock ;; Curent sheep we follow
 ]
 
 to setup
   clear-all
+  ask patches [
+    set pcolor green
+  ]
   create-sheep initial-number-sheep [
     setxy random-xcor random-ycor
     set color white
     set shape "sheep"
+    set last-direction 0
   ]
   create-dogs initial-number-dogs [
     setxy random-xcor random-ycor
@@ -37,14 +44,14 @@ to setup
 end
 
 to setup-chromosome
-  set chromosome (list (random 4) (random 50) ((random 3) - 1))
+  set chromosome (list (random 4) (random 50) (random-float 2))
   print chromosome
 end
 
 to go
   ask dogs [
     if default-dog-movement [
-      move-dogs-default
+      move-dogs-default 1
     ]
     move-dogs
   ]
@@ -64,7 +71,7 @@ to go
 end
 
 ; Default random walk implementation
-to move-dogs-default
+to move-dogs-default [movement-amount]
 
   let possible-moves ["left" "right" "up" "down" "stay"]
   ; move left right, up, down or stay still
@@ -72,16 +79,16 @@ to move-dogs-default
   let movement one-of possible-moves
 
   if movement = "left" [
-    set xcor max list (xcor - 1) min-pxcor
+    set xcor max list (xcor - movement-amount) min-pxcor
   ]
   if movement = "right"[
-    set xcor min list (xcor + 1) max-pxcor
+    set xcor min list (xcor + movement-amount) max-pxcor
   ]
   if movement = "up" [
-    set ycor min list (ycor + 1) max-pycor
+    set ycor min list (ycor + movement-amount) max-pycor
   ]
   if movement = "down" [
-    set ycor max list (ycor - 1) min-pycor
+    set ycor max list (ycor - movement-amount) min-pycor
   ]
 end
 
@@ -98,13 +105,13 @@ to move-dogs
 
   ; Role 1 - Pusher
   if action-type = 0 [
-    push-action distance-condition
+    push-action distance-condition movement
     stop
   ]
 
   ; Role 2 - Fetcher
   if action-type = 1 [
-    fetch-action distance-condition
+    fetch-action distance-condition movement
     stop
   ]
 
@@ -129,38 +136,39 @@ to move-dogs
       ; We are a suitible distance away, now fetch or push
       let follow-up-action random 2
       if follow-up-action = 0 [
-        push-action distance-condition
+        push-action distance-condition movement
       ]
       if follow-up-action = 1 [
-        fetch-action distance-condition
+        fetch-action distance-condition movement
       ]
     ]
     stop
   ]
 
+  ; role 4 - random walk
   ; Random walk
   if action-type = 3 [
-    move-dogs-default
+    move-dogs-default movement
  ]
 
 
 
 end
 
-to fetch-action [distance-condition]
+to fetch-action [distance-condition movement]
     let furthest-sheep max-one-of sheep [distance myself]
     let distance-furthest 0
     ask furthest-sheep [
         set distance-furthest distance myself
     ]
 
-    if distance-furthest > distance-condition [
+    if distance-furthest < distance-condition [
       face furthest-sheep
-      fd 1
+      fd movement
     ]
 end
 
-to push-action [distance-condition]
+to push-action [distance-condition movement]
   let nearest-sheep min-one-of sheep [distance myself]
     let distance-nearest 0
     ask nearest-sheep [
@@ -169,7 +177,7 @@ to push-action [distance-condition]
 
     if distance-nearest < distance-condition [
       face nearest-sheep
-      fd 1
+      fd movement
     ]
 end
 
@@ -181,23 +189,28 @@ to move-sheep
  let adjacent-dog-free-patches adjacent-patches with [not any? dogs-here]
  let adjacent-dog-patches adjacent-patches with [any? dogs-here]
 
+
  let adjacent-sheep-free-patches adjacent-patches with [not any? other sheep-here]
  let adjacent-sheep-patches adjacent-patches with [any? other sheep-here]
+
 
  ; 1 - Move away from the dogs
  if any? dogs-here [
     if any? adjacent-dog-free-patches [
       let target-patch one-of adjacent-dog-free-patches
       face target-patch
+      set last-direction heading
       fd 1
     ]
     stop
  ]
 
+
  ; 2 - If a dog is in an adjacent patch, move to one without
  if any? adjacent-dog-patches [
     let target-patch one-of adjacent-dog-free-patches
     face target-patch
+    set last-direction heading
     fd 1
     stop
  ]
@@ -230,6 +243,7 @@ to move-sheep
     if any? candidates[
       let target-patch one-of candidates
       face target-patch
+      set last-direction heading
       fd 1
       stop
     ]
@@ -249,7 +263,16 @@ to move-sheep
  ; one with 50% probability, or choose one of the remaining four actions, each with
  ; 12.5% probability. For the first move, assume for all sheep that their previous
  ; move was to stay put.
-  ; TODOODOOOOO!!!!!!!!!!
+
+ ; Assumption - There is no point attempting to run the other actions, because if they were
+ ; possible, they would have already been done due to them having a higher priority
+
+  if random-float 1 > 0.5 [
+    set heading last-direction
+    fd 1
+  ]
+
+
 end
 
 ; Score / fitness function
@@ -279,19 +302,23 @@ to-report calculate-score
 end
 
 ; Fitness function
-; average distance to all sheep
+; nearest-largest-group
 to-report fitness
-  let s count sheep
-  let distance-total 0
-  ask sheep [
-    set distance-total distance-total + distance myself ; Calculate distance from the dog to each sheep and add it to the total
+  let nearest-group min-one-of (patches with [count sheep-here >= 2] in-radius 8) [ distance myself ]
+
+  let sheep-at-patch 0
+
+  if nearest-group = nobody [
+    report 0
   ]
-  ; Calculate the average distance
-  if s > 0 [
-    let average-distance distance-total / s
-    report average-distance
+
+  ask nearest-group [
+     set sheep-at-patch count sheep-here
   ]
-  report 0 ; If there are no sheep, return 0
+
+  set current-fitness sheep-at-patch
+
+  report sheep-at-patch
 end
 
 ; average distance to all sheep averaged across all dogs
@@ -311,21 +338,24 @@ end
 
 to endOfCycle
   let sumFitness 0
-  ask dogs [
-    let currentFitness fitness
-    set sumFitness (sumFitness + currentFitness)
-  ]
-  set averageFitness (sumFitness / initial-number-dogs)
   print "Average Fitness: "
-  print averageFitness
+  print average-fitness
   if averageFitness > highest-avg-fitness [set highest-avg-fitness averageFitness]
-  hatchNextGeneration
+
+  ; crossover and mutate
+  ask dogs [
+
+    ;crossOver
+    mutate-chromosome
+
+  ]
+  ;hatchNextGeneration
 end
 
 to setup-dog
   set generation currentGeneration
 
-  ;; when a new agent is created during the tournament phase it will have a chance to mutate chromosome data
+  ; when a new agent is created during the tournament phase it will have a chance to mutate chromosome data
   ifelse generation = 0
   [
     setup-chromosome
@@ -341,12 +371,6 @@ to hatchNextGeneration
 
   set currentGeneration (currentGeneration + 1)
 
-  ask tempSet
-  [
-    set current-fitness fitness
-    if current-fitness < best-individual-score [set best-individual-score current-fitness]
-  ]
-
   ; stops div by 0
   if averageFitness = 0 [ set averageFitness 1]
 
@@ -359,6 +383,7 @@ to hatchNextGeneration
 
         if (current-fitness / averageFitness) > random-float 1
         [
+          print "hatched"
           hatch-dogs 1 [setup-dog
           set color yellow]
         ]
@@ -370,18 +395,6 @@ to hatchNextGeneration
   ;crossOver
 end
 
-;to procreate
-;  if energy > (2 * cost-of-offspring) [
-;    hatch 1 [
-;      set energy cost-of-offspring
-;      set color white
-;    ]
-;    set energy energy - cost-of-offspring
-;  ]
-;end
-
-
-
 ; Mutation function
 to mutate-chromosome
 
@@ -389,7 +402,7 @@ to mutate-chromosome
 
   ; potentially apply mutation to gene 1 - action number 1-9
   ifelse random-float 1 < mutation-probability [
-    set mutated-chrom lput (random 3) mutated-chrom
+    set mutated-chrom lput (random 4) mutated-chrom
   ] [
     set mutated-chrom lput item 0 chromosome mutated-chrom
   ]
@@ -401,9 +414,9 @@ to mutate-chromosome
     set mutated-chrom lput item 1 chromosome mutated-chrom
   ]
 
-  ; potentially apply mutation to gene 3 - distance amount -1, 0 or 1
+  ; potentially apply mutation to gene 3 - distance amount -1 or 1
   ifelse random-float 1 < mutation-probability [
-    set mutated-chrom lput ((random 3) - 1) mutated-chrom
+    set mutated-chrom lput random-float 2 mutated-chrom
   ] [
     set mutated-chrom lput item 2 chromosome mutated-chrom
   ]
@@ -413,6 +426,7 @@ to mutate-chromosome
   print chromosome
 end
 
+; crossover has a 30% chance to swap
 
 ;; Reproduction and crossover
 ;to-report reproduce [parents]
@@ -597,7 +611,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot fitness turtle 50"
+"default" 1.0 0 -16777216 true "" "plot fitness dog 50"
 
 PLOT
 1108
@@ -700,75 +714,159 @@ NIL
 1
 
 SLIDER
-184
-939
-356
-972
+230
+122
+402
+155
 cycleTime
 cycleTime
 0
 100
-99.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-233
-631
-405
-664
-cycleTime
-cycleTime
-0
-100
-99.0
+50.0
 1
 1
 NIL
 HORIZONTAL
 
 SWITCH
-220
-512
-402
-545
+44
+123
+226
+156
 default-dog-movement
 default-dog-movement
 1
 1
 -1000
 
+TEXTBOX
+250
+69
+400
+111
+cycleTime is the amount of ticks before mutation / crossover happens
+11
+0.0
+0
+
 @#$#@#$#@
-## WHAT IS IT?
+# WHAT IS IT?
 
 (a general understanding of what the model is trying to show or explain)
 
-## HOW IT WORKS
+# A NOTE!
 
-(what rules the agents use to create the overall behavior of the model)
+TODO - ADD WHY IT DOES NOT WORK, WHAT MARKS I AM GOING FOR
 
 
-## 1. Representation of dogs’ behaviour [5 marks]
-Choose a simple and efficient representation of your dogs’ behaviour that would
-also allow for adaptation. Describe the chosen representation and explain the
-reasons behind it.
-## 2. Implementation of default behaviour and fitness estimation [10 marks]
+## 1. Representation of dogs’ behaviour
+
+### Initial experimentation with representation
+
+Configuration 1 - Initially I experimented with a chromosome that represented a series of weights to influence the movement of the dog in both the x and y directions. Each chromosome has length equal to the number of dogs.
+
+These weights were used as such:
+- For the current dog:
+    
+	- each weight would be multiplied by the x position of the nth dog.
+	- the sum of these calculations were normalised into a [-1, 1] range for x and y
+	- the dog would move this normalised direction.
+
+This was a failure as the dogs ended up working themselves into a set of equilibrium positions where no dog would move until the chromosomes were mutated.
+
+### Chosen representation
+
+Following this representation I moved to a more expressive representation for the dogs. This was done because I could not understand how a more simple implementation could ever lead to a solution that would herd the dogs. So instead of evolving a simplistic representation in hopes that the correct behaviour is evolved, I moved to implementing multiple roles for the sheepdogs in order to use in a more high-level representation of sheepdog behaviour. The rationale behind this was that encoding roles for the group members allowed for more nuanced and powerful behaviour straight out the gate. This left the job of the genetic algorithm to be determining the correct and optimal combinations of these roles.
+
+Alongside the role of the dog were two other genes, a distancing gene and a movement gene. Within all of the actions are some kind of distancing based check, e.g. move to the furthest away dog that is within N units. To allow this behaviour to be evolved the dog’s chromosome has a distancing gene, this is a number to use for these distancing checks. Additionally a “movement” gene was included to allow the distance the dog moves per tick to be evolved to allow for finer or larger movement per tick in the chosen direction.
+
+A breakdown of the representation can be seen below:
+
+- An action number (integer) [0, 1, 2, 3] - This represents what kind of action the dog would take from a series of set behaviours. e.g. 
+
+   	* "Pushing" - Moving towards the closest dog
+
+   	* "Fetching" - Moving towards the furthest dog
+
+   	* "Zoning" - Maintaining a distance from the center mass of the sheep and then either pushing or fetching
+
+  	 * "Wandering" - Randomly walking, as with the default behaviour of the dogs
+
+	 * With more time I would have liked to have included more actions such as 
+
+		* Circling the center of the biggest herd
+		
+		* Sweeping the map
+	
+		* Herding closer to a random / nearest teammate
+   
+
+- A distance number (integer) [0-50] - Representing a distance that would be used for decision making in the actions. e.g. Fetch the nearest dog, as long as it was less than 20 units away, or maintain a zoning distance of 5 units.
+
+- A movement amount (float) [0 - 2] - Representing a movement amount between 0 and 2 in whatever direction the action took.
+
+At the time that the dog is generated these chromosomes are randomly generated with valid values for each of the three numbers. During mutation each of these three numbers can be replaced with a new random value at random based on the mutation probability.
+
+### Issues with this representation
+
+- It does not provide too much freedom for the genetic algorithm to evolve as it is not very expressive.
+- The search space is small with this representation.
+- It is hard to do partial crossover.
+
+If I had more time I would have liked to have encoded this behaviour through an array of ones and zeros. This would allow solutions to create sensible crossed over (e.g. half and half) distancing genes and movement by using bitwise crossover. Additionally I could have potentially broke down role behaviour in such a way that sensible crossover would be possible with this representation.
+
+
+2. Implementation of default behaviour and fitness estimation [10 marks]
 Provide the necessary, working code implementing the simulation where your
 chosen representation of dogs’ behaviour is set to their default behaviour, then
 describe how running the simulation is going to provide data for estimating the
 fitness of your dogs.
+
+
+### Default sheep behaviour 
+
+The default sheep behaviour has been implemented and can be seen in the move-sheep function of the code.
+
+### Default dog behaviour using the representation
+
+### Fitness and Score
+
+The simulation *uses* two metrics, the fitness of the dogs and the score.
+
+The score is the sum of the variances of X and Y coordinates for all sheep. This is plotted on a graph in the interface section along with the current value of the score.
+
+The fitness of each dog is a metric I created based on how many sheep are in the nearest herd to the dog. Specifically, the highest count of sheep in the patches within a radius of 8 patches from that dog. (Counts of under 2 are not counted, as these are not herds). This was chosen based on the principle that the dogs should be nearby and contributing to minimising the largest herd on the map.
+
+To evaluate the fitness of the whole pack of dogs, the function average-fitness, which is plotted on the interface section, calculates the average fitness of all the dogs in the simulation. This number is usually low but an ideal solution would aim to maximise this so that all dogs are working nearby to the largest herd of sheep, something that would hopefully minimise the score of the solution due to how close all the sheep should be.
+
+
+
+
+
 ## 3. Design and implementation of adaptation [20 marks]
 Describe the design of (10 marks), and implement (10 marks) a procedure that
 uses adaptation to optimise the behaviour of your agents.
+
+If I would have had more time:
+
+
 ## 4. Design of evaluation procedure [10 marks]
 Design and describe an evaluation procedure that allows you to compare the
 behaviour obtained through adaptation to the initial, non-adaptive behaviour, and
 draw conclusions that are grounded on sound statistical arguments.
+
+
 ## 5. Experimental evaluation [5 marks]
 Collect experimental evidence, carry out, and show the results of the evaluation
 procedure described above.
+
+
+## Conclusion
+
+Its clear that the implmentation of this model was not up to scratch. So what could I have done better
+
+- The "actions" idea is likely too complex
+- If I was to follow actions, chasing the nearest dog per tick leads to dogs repeatedly chaning their closest target as they move. Perhaps they should lock on for a certain number of ticks.
 @#$#@#$#@
 default
 true
@@ -1075,7 +1173,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.4.0
+NetLogo 6.3.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
