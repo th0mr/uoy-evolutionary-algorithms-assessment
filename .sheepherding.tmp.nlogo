@@ -138,9 +138,10 @@ to move-dogs
     stop
   ]
 
-  ; Random walk
+
+  ; Circle the mean x and y position of
   if action-type = 3 [
-    move-dogs-default
+
  ]
 
 
