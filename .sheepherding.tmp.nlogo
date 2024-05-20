@@ -351,14 +351,17 @@ end
 to endOfCycle
   set best-average-fitness-this-cycle 0
 
-  ; crossover and mutate
+  ; mutate
   ask dogs [
 
-    ;crossOver
     mutate-chromosome
 
   ]
+
+  ; hatch and crossover
   hatchNextGeneration
+
+
 end
 
 to setup-dog
@@ -399,7 +402,7 @@ to hatchNextGeneration
   ]
   ask tempSet [die]
 
-  ;crossOver
+  crossOver
 end
 
 ; Mutation function
@@ -433,59 +436,47 @@ to mutate-chromosome
   print chromosome
 end
 
-; randomly cross over at a rate of cxpb
+; let the top two breed
+; pick a point to crossover between
+; a funky one point crossover
 to crossOver
-  let tempSet (dogs with [generation = currentGeneration])
 
-  let newSet (n-of 2 tempSet)
+  if random-float 1 > crossover-probability [
+    let tempSet (other dogs with [generation = currentGeneration])
 
-  let agent1 one-of newSet
-  ask agent1 [
-    let agent2 other newSet
-    let a1-action-type item 0 chromosome
-    let a1-distance-condition item 1 chromosome
-    let a1-movement item 2 chromosome
+    let parent1 max-one-of (n-of 3 tempSet) [fitness]
+    let parent2 max-one-of (n-of 3 tempSet) [fitness]
 
-    if random-float 1 > crossover-probability [
+    let crossoverPoint one-of [1 2]
 
-    ]
-    ask agent2 [
-      let a2-action-type item 0 chromosome
-      let a2-distance-condition item 1 chromosome
-      let a2-movement item 2 chromosome
+    let cx-chrom-a1 []
+    let cx-chrom-a2 []
+
+    ask parent1 [
+      let a1-action-type item 0 chromosome
+      let a1-distance-condition item 1 chromosome
+      let a1-movement item 2 chromosome
 
 
-    ]
-  ]
+      ask parent2 [
+        let a2-action-type item 0 chromosome
+        let a2-distance-condition item 1 chromosome
+        let a2-movement item 2 chromosome
 
-  while[0.8 > random-float 1]
-  [
-    let newSet (n-of 2 tempSet)
-    ;; pick a random number between 0 and 32 and swap chromosome block at that point
-    let slicePoint random (round (chromosome-length / 2))
-
-    let agent1 one-of newSet
-
-    ask agent1
-    [
-      let agent2 other newSet
-      let slice sublist chromosome 0 slicePoint
-      let slice1 sublist chromosome slicePoint (chromosome-length)
-
-      ask agent2
-      [
-        let slice2 sublist chromosome 0 slicePoint
-        let slice3 sublist chromosome slicePoint (chromosome-length)
-        set chromosome join-lists slice2 slice1
-        ask agent1
-        [
-          set chromosome join-lists slice slice3
+        if crossoverPoint = 1 [
+          set cx-chrom-a1 (list a1-action-type a2-distance-condition a2-movement)
+          set cx-chrom-a2 (list a2-action-type a1-distance-condition a1-movement)
         ]
-      ]
 
+        if crossoverPoint = 2 [
+          set cx-chrom-a1 (list a1-action-type a1-distance-condition a2-movement)
+          set cx-chrom-a2 (list a2-action-type a2-distance-condition a1-movement)
+        ]
+
+        set chromosome cx-chrom-a2
+      ]
+      set chromosome cx-chrom-a1
     ]
-    ;; make a copy of that state block for both agents
-    ;; then swap them and make a new list for each agents
   ]
 end
 @#$#@#$#@
@@ -600,7 +591,7 @@ crossover-probability
 crossover-probability
 0
 1
-0.45
+1.0
 0.01
 1
 NIL
@@ -638,96 +629,6 @@ false
 "" ""
 PENS
 "pen-0" 1.0 0 -16777216 true "" "plot calculate-score"
-
-PLOT
-1107
-26
-1307
-176
-Fitness Over Time Dog 0
-Ticks
-Fitness
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot fitness dog 50"
-
-PLOT
-1108
-180
-1308
-330
-Fitness Over Time Dog 1
-Ticks
-Fitness
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot fitness turtle 51"
-
-PLOT
-1108
-338
-1308
-488
-Fitness Over Time Dog 2
-Ticks
-Fitness
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot fitness turtle 52"
-
-PLOT
-1108
-494
-1308
-644
-Fitness Over Time Dog 3
-Ticks
-Fitness
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot fitness turtle 53"
-
-PLOT
-1110
-647
-1310
-797
-Fitness Over Time Dog 4
-Ticks
-Fitness
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot fitness turtle 54"
 
 PLOT
 39
@@ -956,13 +857,33 @@ To evaluate this performance we will use two metrics, the fitness of the dogs an
 These metrics and default implementation serve as a base to implement a genetic algorithm to solve the problem.
 
 
-## 3. Design and implementation of adaptation [20 marks]
+## 3. Design and implementation of adaptation
+
 Describe the design of (10 marks), and implement (10 marks) a procedure that
 uses adaptation to optimise the behaviour of your agents.
 
-Firstly, it is worth saying that my evolution for this model does not improve the behaviour of the dogs. I'll first break down the rough, likely non-working implementation of my evolutionary algorithm a 
+Firstly, it is worth saying that my evolution for this model does not improve the behaviour of the dogs. I'll first break down the rough, likely non-working implementation of my evolutionary algorithm and then I will describe a fictional, ideal solution that I would have implemented if I would have had more time. 
 
-If I would have had more time:
+### Current Implementation
+
+While my current implementation achieves very little in terms of improving the behaviour, here is an overview of what it currently.
+
+A slider on the interface page defines the length of ticks that will define a cycle, this is a period of time that the current behaviour will be ran for until the next selection, crossover and mutation is performed. The main loop involves moving the dogs and sheep once per tick until the next cycle is reached, when it is reached the following happens.
+
+1. The best dog fitness is recorded for monitoring purposes and the counter for the best fitness in the cycle is reset.
+2. The chromosomes of each dogs are mutated randomly . Each gene within each chromosome has a probability of determined by a slider on the interface page. e.g. each gene in each chromosome has a 10% chance to change to another valid value.
+3. A set of new dogs are hatched from dogs that fall above the average fitness.
+4. A crossover is applied between two dogs chosen from a tournament selection of 3. The crossover is singl
+
+### Ideal Implementation Design
+
+Tournament Selection
+
+
+
+Crossover
+
+Mutation
 
 
 ## 4. Design of evaluation procedure [10 marks]
