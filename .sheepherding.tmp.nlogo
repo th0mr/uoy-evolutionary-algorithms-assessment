@@ -10,6 +10,7 @@ globals
   currentGeneration
   best-individual-score
   highest-avg-fitness
+  average-score
 ]
 
 sheep-own [
@@ -302,7 +303,7 @@ to-report calculate-score
   ]
 
   let score (sum-of-variation-x + sum-of-variation-y) / s
-
+  set average-score ((average-score * (ticks - 1)) + score) / ticks
   report score
 end
 
@@ -578,7 +579,7 @@ MONITOR
 409
 Current Score
 calculate-score
-17
+3
 1
 11
 
@@ -591,7 +592,7 @@ crossover-probability
 crossover-probability
 0
 1
-1.0
+0.45
 0.01
 1
 NIL
@@ -606,7 +607,7 @@ mutation-probability
 mutation-probability
 0
 1
-0.35
+0.1
 0.01
 1
 NIL
@@ -666,8 +667,8 @@ SLIDER
 cycleTime
 cycleTime
 0
-100
-100.0
+500
+99.0
 1
 1
 NIL
@@ -697,7 +698,7 @@ cycleTime is the amount of ticks before mutation / crossover happens
 MONITOR
 248
 549
-394
+406
 594
 best-avg-fitness-overall
 best-average-fitness-overall
@@ -717,13 +718,24 @@ best-average-fitness-this-cycle
 11
 
 MONITOR
-248
-601
-368
-646
+247
+600
+406
+645
 current-avg-fitness
 average-fitness
 17
+1
+11
+
+MONITOR
+250
+412
+344
+457
+average-score
+average-score
+0
 1
 11
 
@@ -796,12 +808,7 @@ If I had more time I would have liked to have encoded this behaviour through an 
 
 ## 2. Implementation of default behaviour and fitness estimation
 
-
-Provide the necessary, working code implementing the simulation where your
-chosen representation of dogs’ behaviour is set to their default behaviour, then
-describe how running the simulation is going to provide data for estimating the
-fitness of your dogs.
-
+For all testing and implementation, the world is set up on a 49 x 49 bounded grid, with 50 sheep and 5 dogs.
 
 ### Default sheep behaviour 
 
@@ -842,12 +849,11 @@ In all cases where a dog moves, the movement amount is equal to the movement gen
 
 * Role 4 - "Wandering" (Random walk) - At each tick the dog choses one of five moves (left, right, up, down or stay still) as described in the default dog behaviour of the paper.
 
-
 ### Fitness and Score
 
 To evaluate this performance we will use two metrics, the fitness of the dogs and the score.
 
-**Score** - The score is the sum of the variances of X and Y coordinates for all sheep, as defined by the exam paper. This is plotted on a graph in the interface section along with the current value of the score. For comparing evolved and non-evolved overall performance I will be looking at this score as a means of seeing the improvement provided by the evolved behaviour.
+**Score** - The score is the sum of the variances of X and Y coordinates for all sheep, as defined by the exam paper. This is plotted on a graph in the interface section along with the current value of the score. For comparing evolved and non-evolved overall performance I will be looking at this score as a means of seeing the improvement provided by the evolved behaviour. Additionally, the average score across the full runtime can be seen in the interface, this metric can help to potentially evaluate changes in metaperameters later on, as we can determine if the average score across the same time improves.
 
 **Individual Fitness** - The fitness of each dog is a metric I created based on how many sheep are in the nearest herd to the dog. Specifically, the highest count of sheep in the patches within a radius of 8 patches from that dog. (Counts of under 2 are not counted, as these are not herds). This was chosen based on the principle that the dogs should be nearby and contributing to minimising the largest herd on the map.
 
@@ -859,10 +865,7 @@ These metrics and default implementation serve as a base to implement a genetic 
 
 ## 3. Design and implementation of adaptation
 
-Describe the design of (10 marks), and implement (10 marks) a procedure that
-uses adaptation to optimise the behaviour of your agents.
-
-Firstly, it is worth saying that my evolution for this model does not improve the behaviour of the dogs. I'll first break down the rough, likely non-working implementation of my evolutionary algorithm and then I will describe a fictional, ideal solution that I would have implemented if I would have had more time. 
+Firstly, it is worth saying that my evolution for this model does not improve the behaviour of the dogs. I'll first break down the rough, likely non-working implementation of my evolutionary algorithm and then I will describe a fictional, ideal solution that I would have implemented if I would have had more time and knowledge. 
 
 ### Current Implementation
 
@@ -873,24 +876,45 @@ A slider on the interface page defines the length of ticks that will define a cy
 1. The best dog fitness is recorded for monitoring purposes and the counter for the best fitness in the cycle is reset.
 2. The chromosomes of each dogs are mutated randomly . Each gene within each chromosome has a probability of determined by a slider on the interface page. e.g. each gene in each chromosome has a 10% chance to change to another valid value.
 3. A set of new dogs are hatched from dogs that fall above the average fitness.
-4. A crossover is applied between two dogs chosen from a tournament selection of 3. The crossover is singl
+4. A crossover is applied between two dogs chosen from a tournament selection of 3. The crossover is single point crossover either splitting and swapping the chromosomes at position 1 or 2.
+
+Then the cycle continues, hopefully improving the fitness of the dogs as it goes along. As the algorithm runs, the score and fitness graphs are updated per tick.
+
+### Exploring metaparameters
+
+While I have tried my best to investigate the effects of changing metaparameters, I believe that the overall score of the solution and the fitness of the dogs is more impacted by the randomised movement of sheep rarther than effective evolution. i.e. increases in score are dictated by sheep moving towards the dogs, not as a result of the herding behaviour.  This can be observed in the instability of the score graph over time.
+
+As a result of this, optimising metaparameters is not effective for my setup. The following are my metaparameter choices and their rationale.
+
+* Cycle time - 100 ticks - A larger cycle time gives us longer to see the changes of crossover and mutation.
+* Crossover probability - 45% -  In general a higher crossover percentage brings in more solutions that are combinations of their parent solutions, potentially converging on a solution faster, but this can reduce diversity in the population. As such I have left it at 45% as a trade off. 
+* Mutation probability - 10% - General advice around mutation probability recommends keeping mutation at a lower probability, anything over 50% has a much higher tendancy to lose the best individuals in a population as the algorithm mutates away their beneficial traits. Therefore, I am keeping it low at 10%.
+* Initial dogs and sheep - 5 and 50 respectively - This was kept at the setup needed for testing the dogs as defined in the paper.
 
 ### Ideal Implementation Design
 
-Tournament Selection
+As this implementation does not evolve good behaviour for the dogs, I will go through what I think would be a more ideal solution. I would be unable to implement this as I lack the knowledge, time and understanding of both netlogo and GA's in the context of this scenario.
 
+To break down these issues I believe this scenario has a few challenges. One of them being that my representation deals with the dogs as individuals, instead of as a unit. As such, the solution should implement some kind of unified representation which is rewarded for the improvements in fitness across all dogs.
 
+The second problem is that it is hard to have a "population of solutions", as it is hard to run multiple simulations for different full sets of dog behaviours. As such, I just ended up using the individual dogs as my population, essentially pitting themselves against each other. This representation would use a simpler set of actions that lended itself more to crossover and mutation.
 
-Crossover
+To solve this, I think my simulation should store X number of full chromosomes representing all dogs in a pack, then the algorithm would take turns running each of these solutions for the cycle time. After which the fitness of that solution could be determined and the next one could be loaded in. After all of these solutions have been tested, then tournoment selection, crossover and mutation for these full solutions can take place and then the next "generation" can begin, with a stronger full set of behaviours. Upon completion of N generations of the algorithm, the individual with the best fitness would be the dog pack that is the best solution to the problem.
 
-Mutation
+This solution would aim to implement the following:
 
+* Adaptive mutation rates - Typical mutation rates apply mutation at the same rate to good chromsomes as it does to bad chromosomes. While the mutation can be seen as positive for the bad chromsome, it can be very harmful for some of the best chromosomes. 
+* Elitism - To hopefully speed up convergence of the algorithm I would employ elitism. This is a process where the most fit individuals in the generation are given a guaranteed place in the next generation without undergoing mutation. This has the benefit that these individuals best traits are not lost to mutation and they have the chance to go on and produce better solutions through crossover.
+* Fitness sharing - In order to hopefully maintain variance and diversity in the population, the solution would use fitness sharing among each solution.This would involve calculating the similarity between two solutions with the hamming distance based off a given sharing radius. As part of the metaparameter exploration, I would attempt to evaluate a change in the sharing radius for the sharing function.
+
+While I am unsure how effective this proposed solution would be, I am confident that these methods and theory should produce a better solution that what my current genetic algorithm would.
 
 ## 4. Design of evaluation procedure [10 marks]
 Design and describe an evaluation procedure that allows you to compare the
 behaviour obtained through adaptation to the initial, non-adaptive behaviour, and
 draw conclusions that are grounded on sound statistical arguments.
 
+Chose statistical method for comparison. Statistical test e.g. t test
 
 ## 5. Experimental evaluation [5 marks]
 Collect experimental evidence, carry out, and show the results of the evaluation
