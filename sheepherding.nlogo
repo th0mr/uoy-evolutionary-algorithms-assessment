@@ -3,6 +3,9 @@ breed [sheep a-sheep]
 
 globals
 [
+  cycle
+  best-average-fitness-this-cycle
+  best-average-fitness-overall
   averageFitness
   currentGeneration
   best-individual-score
@@ -22,6 +25,8 @@ dogs-own [
 
 to setup
   clear-all
+  set best-average-fitness-overall 0
+  set best-average-fitness-this-cycle 0
   ask patches [
     set pcolor green
   ]
@@ -329,7 +334,14 @@ to-report average-fitness
      set total total + fitness
   ]
   if c > 0 [
-    report total / c
+    let average total / c
+    if average > best-average-fitness-this-cycle [
+      set best-average-fitness-this-cycle average
+    ]
+    if average > best-average-fitness-overall [
+      set best-average-fitness-overall average
+    ]
+    report average
   ]
   report 0 ; if no dogs, report 0 , avoids div by 0
 end
@@ -337,10 +349,7 @@ end
 ; GA METHODS
 
 to endOfCycle
-  let sumFitness 0
-  print "Average Fitness: "
-  print average-fitness
-  if averageFitness > highest-avg-fitness [set highest-avg-fitness averageFitness]
+  set best-average-fitness-this-cycle 0
 
   ; crossover and mutate
   ask dogs [
@@ -349,7 +358,7 @@ to endOfCycle
     mutate-chromosome
 
   ]
-  ;hatchNextGeneration
+  hatchNextGeneration
 end
 
 to setup-dog
@@ -383,9 +392,7 @@ to hatchNextGeneration
 
         if (current-fitness / averageFitness) > random-float 1
         [
-          print "hatched"
-          hatch-dogs 1 [setup-dog
-          set color yellow]
+          hatch-dogs 1 [setup-dog]
         ]
       ]
     ]
@@ -426,24 +433,61 @@ to mutate-chromosome
   print chromosome
 end
 
-; crossover has a 30% chance to swap
+; randomly cross over at a rate of cxpb
+to crossOver
+  let tempSet (dogs with [generation = currentGeneration])
 
-;; Reproduction and crossover
-;to-report reproduce [parents]
-;  let offspring []
-;  while [count offspring < count parents] [
-;    let parent1 random parents
-;    let parent2 random parents
-;    ifelse random-float 1 < crossover-probability [
-;      let child crossover-lists [position myself] of parent1 [position myself] of parent2
-;      set offspring lput child offspring
-;    ] [
-;      let child reproduce-without-crossover parent1 parent2
-;      set offspring lput child offspring
-;    ]
-;  ]
-;  report offspring
-;end
+  let newSet (n-of 2 tempSet)
+
+  let agent1 one-of newSet
+  ask agent1 [
+    let agent2 other newSet
+    let a1-action-type item 0 chromosome
+    let a1-distance-condition item 1 chromosome
+    let a1-movement item 2 chromosome
+
+    if random-float 1 > crossover-probability [
+
+    ]
+    ask agent2 [
+      let a2-action-type item 0 chromosome
+      let a2-distance-condition item 1 chromosome
+      let a2-movement item 2 chromosome
+
+
+    ]
+  ]
+
+  while[0.8 > random-float 1]
+  [
+    let newSet (n-of 2 tempSet)
+    ;; pick a random number between 0 and 32 and swap chromosome block at that point
+    let slicePoint random (round (chromosome-length / 2))
+
+    let agent1 one-of newSet
+
+    ask agent1
+    [
+      let agent2 other newSet
+      let slice sublist chromosome 0 slicePoint
+      let slice1 sublist chromosome slicePoint (chromosome-length)
+
+      ask agent2
+      [
+        let slice2 sublist chromosome 0 slicePoint
+        let slice3 sublist chromosome slicePoint (chromosome-length)
+        set chromosome join-lists slice2 slice1
+        ask agent1
+        [
+          set chromosome join-lists slice slice3
+        ]
+      ]
+
+    ]
+    ;; make a copy of that state block for both agents
+    ;; then swap them and make a new list for each agents
+  ]
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 412
@@ -537,11 +581,11 @@ NIL
 1
 
 MONITOR
-280
-426
-376
-471
-NIL
+249
+364
+345
+409
+Current Score
 calculate-score
 17
 1
@@ -578,9 +622,9 @@ NIL
 HORIZONTAL
 
 PLOT
-67
+36
 361
-267
+236
 511
 Score over time
 Ticks
@@ -686,9 +730,9 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot fitness turtle 54"
 
 PLOT
-64
+39
 546
-264
+239
 696
 Average Dog Fitness
 Ticks
@@ -722,7 +766,7 @@ cycleTime
 cycleTime
 0
 100
-50.0
+100.0
 1
 1
 NIL
@@ -748,6 +792,39 @@ cycleTime is the amount of ticks before mutation / crossover happens
 11
 0.0
 0
+
+MONITOR
+248
+549
+394
+594
+best-avg-fitness-overall
+best-average-fitness-overall
+17
+1
+11
+
+MONITOR
+247
+654
+408
+699
+best-avg-fitness-this-cycle
+best-average-fitness-this-cycle
+17
+1
+11
+
+MONITOR
+248
+601
+368
+646
+current-avg-fitness
+average-fitness
+17
+1
+11
 
 @#$#@#$#@
 # WHAT IS IT?
@@ -816,7 +893,9 @@ At the time that the dog is generated these chromosomes are randomly generated w
 If I had more time I would have liked to have encoded this behaviour through an array of ones and zeros. This would allow solutions to create sensible crossed over (e.g. half and half) distancing genes and movement by using bitwise crossover. Additionally I could have potentially broke down role behaviour in such a way that sensible crossover would be possible with this representation.
 
 
-2. Implementation of default behaviour and fitness estimation [10 marks]
+## 2. Implementation of default behaviour and fitness estimation
+
+
 Provide the necessary, working code implementing the simulation where your
 chosen representation of dogs’ behaviour is set to their default behaviour, then
 describe how running the simulation is going to provide data for estimating the
@@ -825,29 +904,67 @@ fitness of your dogs.
 
 ### Default sheep behaviour 
 
-The default sheep behaviour has been implemented and can be seen in the move-sheep function of the code.
+The default sheep behaviour has been implemented as described in the exam paper and can be seen in the move-sheep function of the code.
+
+Sheep follow the priority order of five actions:
+
+1. If there is a dog in the sheep's current patch, it moves, if possible, to a patch without a dog.
+
+2. If there is a dog in any of the four adjacent patches (i.e. North, South, East or
+West of the current one), it moves, if possible, to an adjacent patch that does not
+contain a dog;
+
+3. Move to a patch with no sheep, but which is adjacent to a patch with sheep;
+
+4. Move to an adjacent patch containing fewer sheep than the current patch;
+
+5. Make a stochastic choice of action as follows: choose the same action as the last
+one with 50% probability, or choose one of the remaining four actions, each with
+12.5% probability. For the first move, assume for all sheep that their previous
+move was to stay put.
+
+Assumption - For action 5, I could not understand how the sheep could choose from the "remaining four actions", as surely if it was possible for them to take that action based on the conditions they have and the priority order, they should have already have been taken. As such, action 5 in my implementation is just a 50% chance to repeat the last movement based off the heading and movement values taken before.
 
 ### Default dog behaviour using the representation
 
+The default setup for the representation's chromosomes is to randomly assign values in the ranges for each gene. This represents a random selection of sheepdog roles, distancing conditions and movement values. The performance of this solution has the potential to be initially quite poor depending on the selection of roles given to the dogs.
+
+As described in the representation section, the first gene in the chromosome represents a role. I'll breifly break down the actions the dogs take in each of these roles and the rationale.
+
+In all cases where a dog moves, the movement amount is equal to the movement gene as described earlier.
+
+* Role 1 - "Pushing" (Moving towards the closest dog) - At each tick the dog calculates its closest sheep and moves towards that sheep as long as it is within a distance of less than that dog's distance gene. i.e. if the nearest sheep is less than 10 units away, chase it.
+
+* Role 2 - "Fetching" (Moving towards the furthest dog) - At each tick the dog calculates the sheep that is the furthest distance away from it and moves towards that sheep as long as it is within a distance of less than the dog's distance gene.
+
+* Role 3 - "Zoning" (Keeping distance from center then fetching or pushing) - At each tick the dog aims to keep a distance from the center mass of all sheep on the map, only when it is at the distance defined by the distance gene will the dog then take role 1 or role 2 while in this safe distance.
+
+* Role 4 - "Wandering" (Random walk) - At each tick the dog choses one of five moves (left, right, up, down or stay still) as described in the default dog behaviour of the paper.
+
+
 ### Fitness and Score
 
-The simulation *uses* two metrics, the fitness of the dogs and the score.
+To evaluate this performance we will use two metrics, the fitness of the dogs and the score.
 
-The score is the sum of the variances of X and Y coordinates for all sheep. This is plotted on a graph in the interface section along with the current value of the score.
+**Score** - The score is the sum of the variances of X and Y coordinates for all sheep, as defined by the exam paper. This is plotted on a graph in the interface section along with the current value of the score. For comparing evolved and non-evolved overall performance I will be looking at this score as a means of seeing the improvement provided by the evolved behaviour.
 
-The fitness of each dog is a metric I created based on how many sheep are in the nearest herd to the dog. Specifically, the highest count of sheep in the patches within a radius of 8 patches from that dog. (Counts of under 2 are not counted, as these are not herds). This was chosen based on the principle that the dogs should be nearby and contributing to minimising the largest herd on the map.
-
-To evaluate the fitness of the whole pack of dogs, the function average-fitness, which is plotted on the interface section, calculates the average fitness of all the dogs in the simulation. This number is usually low but an ideal solution would aim to maximise this so that all dogs are working nearby to the largest herd of sheep, something that would hopefully minimise the score of the solution due to how close all the sheep should be.
+**Individual Fitness** - The fitness of each dog is a metric I created based on how many sheep are in the nearest herd to the dog. Specifically, the highest count of sheep in the patches within a radius of 8 patches from that dog. (Counts of under 2 are not counted, as these are not herds). This was chosen based on the principle that the dogs should be nearby and contributing to minimising the largest herd on the map.
 
 
+**Average Fitness** - To evaluate the fitness of the whole pack of dogs, the function average-fitness, which is plotted on the interface section, calculates the average fitness of all the dogs in the simulation. This number is usually low but an ideal solution would aim to maximise this so that all dogs are working nearby to the largest herd of sheep, something that would hopefully minimise the score of the solution due to how close all the sheep should be.
 
+These metrics and default implementation serve as a base to implement a genetic algorithm to solve the problem.
 
 
 ## 3. Design and implementation of adaptation [20 marks]
 Describe the design of (10 marks), and implement (10 marks) a procedure that
 uses adaptation to optimise the behaviour of your agents.
 
-If I would have had more time:
+Firstly, it is worth saying that my evolution for this model does not improve the behaviour of the dogs. I'll first break down the rough, likely non-working implementation of my evolutionary algorithm and then I will describe a fictional, ideal solution that I would have implemented if I would have had more time. 
+
+### Current Implementation
+
+### Ideal Implementation Design
 
 
 ## 4. Design of evaluation procedure [10 marks]
@@ -861,12 +978,12 @@ Collect experimental evidence, carry out, and show the results of the evaluation
 procedure described above.
 
 
-## Conclusion
+### Conclusion
 
 Its clear that the implmentation of this model was not up to scratch. So what could I have done better
 
-- The "actions" idea is likely too complex
-- If I was to follow actions, chasing the nearest dog per tick leads to dogs repeatedly chaning their closest target as they move. Perhaps they should lock on for a certain number of ticks.
+- The "roles" idea is likely too complex for a genetic algorithm
+- In the action implementation action sushc as chasing the nearest dog per tick leads to dogs repeatedly chaning their closest target as they move. This led to indecisive dog behaviour when herding. With more time it may have been beneficial to rework this into an implementation that locked onto a chosen sheep for N cycles.
 @#$#@#$#@
 default
 true
