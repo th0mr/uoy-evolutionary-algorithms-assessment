@@ -803,7 +803,7 @@ At the time that the dog is generated these chromosomes are randomly generated w
 - The search space is small with this representation.
 - It is hard to do partial crossover.
 
-If I had more time I would have liked to have encoded this behaviour through an array of ones and zeros. This would allow solutions to create sensible crossed over (e.g. half and half) distancing genes and movement by using bitwise crossover. Additionally I could have potentially broke down role behaviour in such a way that sensible crossover would be possible with this representation.
+If I had more time I would have liked to have encoded this behaviour through an array of ones and zeros. This would allow solutions to create sensible crossed over (e.g. half and half) distancing genes and movement by using bitwise crossover. Additionally I could have potentially broken down role behaviour in such a way that sensible crossover would be possible with this representation.
 
 
 ## 2. Implementation of default behaviour and fitness estimation
@@ -831,7 +831,7 @@ one with 50% probability, or choose one of the remaining four actions, each with
 12.5% probability. For the first move, assume for all sheep that their previous
 move was to stay put.
 
-Assumption - For action 5, I could not understand how the sheep could choose from the "remaining four actions", as surely if it was possible for them to take that action based on the conditions they have and the priority order, they should have already have been taken. As such, action 5 in my implementation is just a 50% chance to repeat the last movement based off the heading and movement values taken before.
+Assumption - For action 5, I could not understand how the sheep could choose from the "remaining four actions", as surely if it was possible for them to take that action based on the conditions they have and the priority order, they should have already been taken. As such, action 5 in my implementation is just a 50% chance to repeat the last movement based off the heading and movement values taken before.
 
 ### Default dog behaviour using the representation
 
@@ -853,7 +853,7 @@ In all cases where a dog moves, the movement amount is equal to the movement gen
 
 To evaluate this performance we will use two metrics, the fitness of the dogs and the score.
 
-**Score** - The score is the sum of the variances of X and Y coordinates for all sheep, as defined by the exam paper. This is plotted on a graph in the interface section along with the current value of the score. For comparing evolved and non-evolved overall performance I will be looking at this score as a means of seeing the improvement provided by the evolved behaviour. Additionally, the average score across the full runtime can be seen in the interface, this metric can help to potentially evaluate changes in metaperameters later on, as we can determine if the average score across the same time improves.
+**Score** - The score is the sum of the variances of X and Y coordinates for all sheep, as defined by the exam paper. This is plotted on a graph in the interface section along with the current value of the score. For comparing evolved and unevolved overall performance I will be looking at this score as a means of seeing the improvement provided by the evolved behaviour. Additionally, the average score across the full runtime can be seen in the interface, this metric can help to potentially evaluate changes in metaparameters later on, as we can determine if the average score across the same time improves.
 
 **Individual Fitness** - The fitness of each dog is a metric I created based on how many sheep are in the nearest herd to the dog. Specifically, the highest count of sheep in the patches within a radius of 8 patches from that dog. (Counts of under 2 are not counted, as these are not herds). This was chosen based on the principle that the dogs should be nearby and contributing to minimising the largest herd on the map.
 
@@ -865,16 +865,16 @@ These metrics and default implementation serve as a base to implement a genetic 
 
 ## 3. Design and implementation of adaptation
 
-Firstly, it is worth saying that my evolution for this model does not improve the behaviour of the dogs. I'll first break down the rough, likely non-working implementation of my evolutionary algorithm and then I will describe a fictional, ideal solution that I would have implemented if I would have had more time and knowledge. 
+Firstly, it is worth saying that my evolution for this model does not improve the behaviour of the dogs. I'll first break down the rough, likely non-working implementation of my evolutionary algorithm and then I will describe a fictional, ideal solution that I would have implemented if I had more time and knowledge. 
 
 ### Current Implementation
 
-While my current implementation achieves very little in terms of improving the behaviour, here is an overview of what it currently.
+While my current implementation achieves very little in terms of improving the behaviour, here is an overview of what it currently is implemented.
 
-A slider on the interface page defines the length of ticks that will define a cycle, this is a period of time that the current behaviour will be ran for until the next selection, crossover and mutation is performed. The main loop involves moving the dogs and sheep once per tick until the next cycle is reached, when it is reached the following happens.
+A slider on the interface page defines the length of ticks that will define a cycle, this is a period of time that the current behaviour will be run for until the next selection, crossover and mutation is performed. The main loop involves moving the dogs and sheep once per tick until the next cycle is reached, when it is reached the following happens.
 
 1. The best dog fitness is recorded for monitoring purposes and the counter for the best fitness in the cycle is reset.
-2. The chromosomes of each dogs are mutated randomly . Each gene within each chromosome has a probability of determined by a slider on the interface page. e.g. each gene in each chromosome has a 10% chance to change to another valid value.
+2. The chromosomes of each dog are mutated randomly . Each gene within each chromosome has a probability determined by a slider on the interface page. e.g. each gene in each chromosome has a 10% chance to change to another valid value.
 3. A set of new dogs are hatched from dogs that fall above the average fitness.
 4. A crossover is applied between two dogs chosen from a tournament selection of 3. The crossover is single point crossover either splitting and swapping the chromosomes at position 1 or 2.
 
@@ -882,7 +882,7 @@ Then the cycle continues, hopefully improving the fitness of the dogs as it goes
 
 ### Exploring metaparameters
 
-While I have tried my best to investigate the effects of changing metaparameters, I believe that the overall score of the solution and the fitness of the dogs is more impacted by the randomised movement of sheep rarther than effective evolution. i.e. increases in score are dictated by sheep moving towards the dogs, not as a result of the herding behaviour.  This can be observed in the instability of the score graph over time.
+While I have tried my best to investigate the effects of changing metaparameters, I believe that the overall score of the solution and the fitness of the dogs is more impacted by the randomised movement of sheep rather than effective evolution. i.e. increases in score are dictated by sheep moving towards the dogs, not as a result of the herding behaviour.  This can be observed in the instability of the score graph over time.
 
 As a result of this, optimising metaparameters is not effective for my setup. The following are my metaparameter choices and their rationale.
 
@@ -903,9 +903,9 @@ To solve this, I think my simulation should store X number of full chromosomes r
 
 This solution would aim to implement the following:
 
-* Adaptive mutation rates - Typical mutation rates apply mutation at the same rate to good chromsomes as it does to bad chromosomes. While the mutation can be seen as positive for the bad chromsome, it can be very harmful for some of the best chromosomes. To solve this issue, the mutation rate in this solution would be scaled depending on how good the fitness of the solution is, lowering the rate for high-quality solutions and increasing it for low-quality solutions.
-* Elitism - To hopefully speed up convergence of the algorithm I would employ elitism. This is a process where the most fit individuals in the generation are given a guaranteed place in the next generation without undergoing mutation. This has the benefit that these individuals best traits are not lost to mutation and they have the chance to go on and produce better solutions through crossover.
-* Fitness sharing - In order to hopefully maintain variance and diversity in the population, the solution would use fitness sharing among each solution.This would involve calculating the similarity between two solutions with the hamming distance based off a given sharing radius. As part of the metaparameter exploration, I would attempt to evaluate a change in the sharing radius for the sharing function.
+* Adaptive mutation rates - Typical mutation rates apply mutation at the same rate to good chromosomes as it does to bad chromosomes. While the mutation can be seen as positive for the bad chromosome, it can be very harmful for some of the best chromosomes. To solve this issue, the mutation rate in this solution would be scaled depending on how good the fitness of the solution is, lowering the rate for high-quality solutions and increasing it for low-quality solutions.
+* Elitism - To hopefully speed up convergence of the algorithm I would employ elitism. This is a process where the most fit individuals in the generation are given a guaranteed place in the next generation without undergoing mutation. This has the benefit that these individuals' best traits are not lost to mutation and they have the chance to go on and produce better solutions through crossover.
+* Fitness sharing - In order to hopefully maintain variance and diversity in the population, the solution would use fitness sharing among each solution.This would involve calculating the similarity between two solutions with the hamming distance based on a given sharing radius. As part of the metaparameter exploration, I would attempt to evaluate a change in the sharing radius for the sharing function.
 
 While I am unsure how effective this proposed solution would be, I am confident that these methods and theory should produce a better solution that what my current genetic algorithm would.
 
@@ -914,7 +914,7 @@ Design and describe an evaluation procedure that allows you to compare the
 behaviour obtained through adaptation to the initial, non-adaptive behaviour, and
 draw conclusions that are grounded on sound statistical arguments.
 
-Chose statistical method for comparison. Statistical test e.g. t test
+Choose statistical method for comparison. Statistical test e.g. t test
 
 ## 5. Experimental evaluation [5 marks]
 Collect experimental evidence, carry out, and show the results of the evaluation
@@ -923,10 +923,12 @@ procedure described above.
 
 ### Conclusion
 
-Its clear that the implmentation of this model was not up to scratch. So what could I have done better
+Its clear that the implementation of this model was not up to scratch. So what could I have done better
 
 - The "roles" idea is likely too complex for a genetic algorithm
-- In the action implementation action sushc as chasing the nearest dog per tick leads to dogs repeatedly chaning their closest target as they move. This led to indecisive dog behaviour when herding. With more time it may have been beneficial to rework this into an implementation that locked onto a chosen sheep for N cycles.
+- In the action implementation action such as chasing the nearest dog per tick leads to dogs repeatedly changing their closest target as they move. This led to indecisive dog behaviour when herding. With more time it may have been beneficial to rework this into an implementation that locked onto a chosen sheep for N cycles.
+
+
 @#$#@#$#@
 default
 true
