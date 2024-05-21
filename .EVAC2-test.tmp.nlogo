@@ -11,6 +11,8 @@ globals
   best-individual-score
   highest-avg-fitness
   average-score
+  last-dog-fitnesses
+  currentChrom
 ]
 
 sheep-own [
@@ -21,13 +23,19 @@ dogs-own [
   chromosome ; TODO - EXPLAIN CHROMOSOME
   generation ;; what generation they are from
   current-fitness;
-  current-lock ;; Curent sheep we follow
+  current-avg-fitness
 ]
 
 to setup
   clear-all
   set best-average-fitness-overall 0
   set best-average-fitness-this-cycle 0
+  set last-dog-fitnesses []
+
+  ; set behaviour from the training
+  let chromosomes [[1 45 1.1956739611046414] [2 9 1.5314295965089653] [2 38 1.143777241013512] [0 39 1.9540880034099213] [0 26 0.31559374853140176]]
+  let n 0
+
   ask patches [
     set pcolor green
   ]
@@ -42,16 +50,18 @@ to setup
     set color red
     set shape "wolf"
     ; Set chromosome to be an array of the size of the number of dogs
-    setup-chromosome
+    set chromosome item n chromosomes
+    set n n + 1
     set generation 0
     set current-fitness 999999999999
+    set current-avg-fitness 0;
   ]
   reset-ticks
 end
 
-to setup-chromosome
-  set chromosome (list (random 4) (random 50) (random-float 2))
-end
+;to setup-chromosome
+;  set chromosome (list (random 4) (random 50) (random-float 2))
+;end
 
 to go
   ask dogs [
@@ -350,15 +360,25 @@ end
 to endOfCycle
   set best-average-fitness-this-cycle 0
 
-  ; mutate
+  update-average-dog-fitnesses
+
+  ; bodge to get things working for test
   ask dogs [
-
-    mutate-chromosome
-
+    set generation currentGeneration
   ]
 
+  set currentGeneration currentGeneration + 1
+
+  ; remove GA aspects
+  ; mutate
+  ;ask dogs [
+;
+ ;   mutate-chromosome
+;
+ ; ]
+
   ; hatch and crossover
-  hatchNextGeneration
+  ;hatchNextGeneration
 
 
 end
@@ -366,14 +386,14 @@ end
 to setup-dog
   set generation currentGeneration
 
-  ; when a new agent is created during the tournament phase it will have a chance to mutate chromosome data
-  ifelse generation = 0
-  [
-    setup-chromosome
-  ]
-  [
-    mutate-chromosome
-  ]
+;  ; when a new agent is created during the tournament phase it will have a chance to mutate chromosome data
+;  ifelse generation = 0
+;  [
+;    setup-chromosome
+;  ]
+;  [
+;    mutate-chromosome
+;  ]
 end
 
 to hatchNextGeneration
@@ -477,10 +497,25 @@ to crossOver
   ]
 end
 
+to update-average-dog-fitnesses
+  ask dogs [
+    set current-avg-fitness ((current-avg-fitness * generation) + fitness) / (generation + 1)
+  ]
+  print "end of cycle dog-fitnesses: "
+  print current-average-dog-fitnesses
+end
+
+to-report get-avg-dog-fitnesses
+  if ticks mod cycleTime = 0 [
+    set last-dog-fitnesses current-average-dog-fitnesses
+  ]
+  report last-dog-fitnesses
+end
+
 to-report current-average-dog-fitnesses
   let array []
   ask dogs [
-   set array lput fitness array
+   set array lput current-avg-fitness array
   ]
   report array
 end
@@ -553,7 +588,7 @@ initial-number-dogs
 initial-number-dogs
 0
 100
-6.0
+5.0
 1
 1
 NIL
@@ -672,7 +707,7 @@ cycleTime
 cycleTime
 0
 500
-99.0
+100.0
 1
 1
 NIL
@@ -685,7 +720,7 @@ SWITCH
 156
 default-dog-movement
 default-dog-movement
-1
+0
 1
 -1000
 
@@ -760,231 +795,114 @@ NIL
 NIL
 1
 
-MONITOR
+TEXTBOX
+47
+38
+220
 122
-722
-303
-767
-Current average dog fitnesses
-current-average-dog-fitnesses
-17
-1
+Note for this test model, turning off the default-dog-movement sets the behaviour to the best evolved chromosomes from the EVAC2-train file
 11
+0.0
+1
 
 @#$#@#$#@
-# WHAT IS IT?
+# EVAC - Part 2 - Sheepdog training algorithm with evolutionary algorithms - Test file
 
-(a general understanding of what the model is trying to show or explain)
+## 5. Experimental evaluation
 
-# A NOTE!
 
-TODO - ADD WHY IT DOES NOT WORK, WHAT MARKS I AM GOING FOR
+This evaluation goes through two sections, generic, surface level checks of the solution and a full run through of the evaluation procedure from above.
 
+### Loading the chromosomes for testing and base level evaluation.
 
-## 1. Representation of dogs’ behaviour
+The genetic algorithm was ran for 100 cycles in the training netlogo file, the final chromosome values for the five dogs were taken from the model after it was ran and then transplanted into the dogs in this model in the setup function. Following this, all evolutionary methods were disabled so we can get a clear run of the behaviour using these evolved individuals.
 
-### Initial experimentation with representation
+Overall when the evolved behaviour is ran for 100 cycles it produces an average score of 360 over period. When the non-evolved behaviour is ran for the same period, it scores an average of 369. This is not much of an improvement and is definitely not a rigorous test of performance, as such we will employ the evaluation procedure described in the training file which will conclude the report.
 
-Configuration 1 - Initially I experimented with a chromosome that represented a series of weights to influence the movement of the dog in both the x and y directions. Each chromosome has length equal to the number of dogs.
 
-These weights were used as such:
-- For the current dog:
-    
-	- each weight would be multiplied by the x position of the nth dog.
-	- the sum of these calculations were normalised into a [-1, 1] range for x and y
-	- the dog would move this normalised direction.
 
-This was a failure as the dogs ended up working themselves into a set of equilibrium positions where no dog would move until the chromosomes were mutated.
+### Running the evaluation procedure (t-test)
 
-### Chosen representation
 
-Following this representation I moved to a more expressive representation for the dogs. This was done because I could not understand how a more simple implementation could ever lead to a solution that would herd the dogs. So instead of evolving a simplistic representation in hopes that the correct behaviour is evolved, I moved to implementing multiple roles for the sheepdogs in order to use in a more high-level representation of sheepdog behaviour. The rationale behind this was that encoding roles for the group members allowed for more nuanced and powerful behaviour straight out the gate. This left the job of the genetic algorithm to be determining the correct and optimal combinations of these roles.
+To collect the data I used the switch on the interface page which enables the default dog behaviour, following this I ran the model for 10k steps by pressing the convenient button that will stop the run after 10k steps, after which I recorded the average per-dog fitness from the command center. I repeated this while running the evolutionary algorithm and collected the per-dog fitness from this as well. The two arrays can be seen below, all values were rounded to 2dp.
 
-Alongside the role of the dog were two other genes, a distancing gene and a movement gene. Within all of the actions are some kind of distancing based check, e.g. move to the furthest away dog that is within N units. To allow this behaviour to be evolved the dog’s chromosome has a distancing gene, this is a number to use for these distancing checks. Additionally a “movement” gene was included to allow the distance the dog moves per tick to be evolved to allow for finer or larger movement per tick in the chosen direction.
 
-A breakdown of the representation can be seen below:
+avg-per-dog-fitness-default-behaviour (x1) = [1.19 1.29 1.21 1.40 1.46]
 
-- An action number (integer) [0, 1, 2, 3] - This represents what kind of action the dog would take from a series of set behaviours. e.g. 
 
-   	* "Pushing" - Moving towards the closest dog
+avg-per-dog-fitness-evolving-behaviour (x2) = [1.59 1.69 1.42 1.23 1.50]
 
-   	* "Fetching" - Moving towards the furthest dog
 
-   	* "Zoning" - Maintaining a distance from the center mass of the sheep and then either pushing or fetching
+note - the eventual avg fitness from the evolutionary behaviour varies from run to run, it could be higher or it could be lower.
 
-  	 * "Wandering" - Randomly walking, as with the default behaviour of the dogs
 
-	 * With more time I would have liked to have included more actions such as 
+I'll use this data below to run a t test as described earlier:
 
-		* Circling the center of the biggest herd
-		
-		* Sweeping the map
-	
-		* Herding closer to a random / nearest teammate
-   
 
-- A distance number (integer) [0-50] - Representing a distance that would be used for decision making in the actions. e.g. Fetch the nearest dog, as long as it was less than 20 units away, or maintain a zoning distance of 5 units.
+1 - Define hypotheses:
 
-- A movement amount (float) [0 - 2] - Representing a movement amount between 0 and 2 in whatever direction the action took.
 
-At the time that the dog is generated these chromosomes are randomly generated with valid values for each of the three numbers. During mutation each of these three numbers can be replaced with a new random value at random based on the mutation probability.
-
-### Issues with this representation
-
-- It does not provide too much freedom for the genetic algorithm to evolve as it is not very expressive.
-- The search space is small with this representation.
-- It is hard to do partial crossover.
-
-If I had more time I would have liked to have encoded this behaviour through an array of ones and zeros. This would allow solutions to create sensible crossed over (e.g. half and half) distancing genes and movement by using bitwise crossover. Additionally I could have potentially broken down role behaviour in such a way that sensible crossover would be possible with this representation.
-
-
-## 2. Implementation of default behaviour and fitness estimation
-
-For all testing and implementation, the world is set up on a 49 x 49 bounded grid, with 50 sheep and 5 dogs.
-
-### Default sheep behaviour 
-
-The default sheep behaviour has been implemented as described in the exam paper and can be seen in the move-sheep function of the code.
-
-Sheep follow the priority order of five actions:
-
-1. If there is a dog in the sheep's current patch, it moves, if possible, to a patch without a dog.
-
-2. If there is a dog in any of the four adjacent patches (i.e. North, South, East or
-West of the current one), it moves, if possible, to an adjacent patch that does not
-contain a dog;
-
-3. Move to a patch with no sheep, but which is adjacent to a patch with sheep;
-
-4. Move to an adjacent patch containing fewer sheep than the current patch;
-
-5. Make a stochastic choice of action as follows: choose the same action as the last
-one with 50% probability, or choose one of the remaining four actions, each with
-12.5% probability. For the first move, assume for all sheep that their previous
-move was to stay put.
-
-Assumption - For action 5, I could not understand how the sheep could choose from the "remaining four actions", as surely if it was possible for them to take that action based on the conditions they have and the priority order, they should have already been taken. As such, action 5 in my implementation is just a 50% chance to repeat the last movement based off the heading and movement values taken before.
-
-### Default dog behaviour using the representation
-
-The default setup for the representation's chromosomes is to randomly assign values in the ranges for each gene. This represents a random selection of sheepdog roles, distancing conditions and movement values. The performance of this solution has the potential to be initially quite poor depending on the selection of roles given to the dogs.
-
-As described in the representation section, the first gene in the chromosome represents a role. I'll breifly break down the actions the dogs take in each of these roles and the rationale.
-
-In all cases where a dog moves, the movement amount is equal to the movement gene as described earlier.
-
-* Role 1 - "Pushing" (Moving towards the closest dog) - At each tick the dog calculates its closest sheep and moves towards that sheep as long as it is within a distance of less than that dog's distance gene. i.e. if the nearest sheep is less than 10 units away, chase it.
-
-* Role 2 - "Fetching" (Moving towards the furthest dog) - At each tick the dog calculates the sheep that is the furthest distance away from it and moves towards that sheep as long as it is within a distance of less than the dog's distance gene.
-
-* Role 3 - "Zoning" (Keeping distance from center then fetching or pushing) - At each tick the dog aims to keep a distance from the center mass of all sheep on the map, only when it is at the distance defined by the distance gene will the dog then take role 1 or role 2 while in this safe distance.
-
-* Role 4 - "Wandering" (Random walk) - At each tick the dog choses one of five moves (left, right, up, down or stay still) as described in the default dog behaviour of the paper.
-
-### Fitness and Score
-
-To evaluate this performance we will use two metrics, the fitness of the dogs and the score.
-
-**Score** - The score is the sum of the variances of X and Y coordinates for all sheep, as defined by the exam paper. This is plotted on a graph in the interface section along with the current value of the score. For comparing evolved and unevolved overall performance I will be looking at this score as a means of seeing the improvement provided by the evolved behaviour. Additionally, the average score across the full runtime can be seen in the interface, this metric can help to potentially evaluate changes in metaparameters later on, as we can determine if the average score across the same time improves.
-
-**Individual Fitness** - The fitness of each dog is a metric I created based on how many sheep are in the nearest herd to the dog. Specifically, the highest count of sheep in the patches within a radius of 8 patches from that dog. (Counts of under 2 are not counted, as these are not herds). This was chosen based on the principle that the dogs should be nearby and contributing to minimising the largest herd on the map.
-
-
-**Average Fitness** - To evaluate the fitness of the whole pack of dogs, the function average-fitness, which is plotted on the interface section, calculates the average fitness of all the dogs in the simulation. This number is usually low but an ideal solution would aim to maximise this so that all dogs are working nearby to the largest herd of sheep, something that would hopefully minimise the score of the solution due to how close all the sheep should be.
-
-These metrics and default implementation serve as a base to implement a genetic algorithm to solve the problem.
-
-
-## 3. Design and implementation of adaptation
-
-Firstly, it is worth saying that my evolution for this model does not improve the behaviour of the dogs. I'll first break down the rough, likely non-working implementation of my evolutionary algorithm and then I will describe a fictional, ideal solution that I would have implemented if I had more time and knowledge. 
-
-### Current Implementation
-
-While my current implementation achieves very little in terms of improving the behaviour, here is an overview of what it currently is implemented.
-
-A slider on the interface page defines the length of ticks that will define a cycle, this is a period of time that the current behaviour will be run for until the next selection, crossover and mutation is performed. The main loop involves moving the dogs and sheep once per tick until the next cycle is reached, when it is reached the following happens.
-
-1. The best dog fitness is recorded for monitoring purposes and the counter for the best fitness in the cycle is reset.
-2. The chromosomes of each dog are mutated randomly . Each gene within each chromosome has a probability determined by a slider on the interface page. e.g. each gene in each chromosome has a 10% chance to change to another valid value.
-3. A set of new dogs are hatched from dogs that fall above the average fitness.
-4. A crossover is applied between two dogs chosen from a tournament selection of 3. The crossover is single point crossover either splitting and swapping the chromosomes at position 1 or 2.
-
-Then the cycle continues, hopefully improving the fitness of the dogs as it goes along. As the algorithm runs, the score and fitness graphs are updated per tick.
-
-### Exploring metaparameters
-
-While I have tried my best to investigate the effects of changing metaparameters, I believe that the overall score of the solution and the fitness of the dogs is more impacted by the randomised movement of sheep rather than effective evolution. i.e. increases in score are dictated by sheep moving towards the dogs, not as a result of the herding behaviour.  This can be observed in the instability of the score graph over time.
-
-As a result of this, optimising metaparameters is not effective for my setup. The following are my metaparameter choices and their rationale.
-
-* Cycle time - 100 ticks - A larger cycle time gives us longer to see the changes of crossover and mutation.
-* Crossover probability - 45% -  In general a higher crossover percentage brings in more solutions that are combinations of their parent solutions, potentially converging on a solution faster, but this can reduce diversity in the population. As such I have left it at 45% as a trade off. 
-* Mutation probability - 10% - General advice around mutation probability recommends keeping mutation at a lower probability, anything over 50% has a much higher tendancy to lose the best individuals in a population as the algorithm mutates away their beneficial traits. Therefore, I am keeping it low at 10%.
-* Initial dogs and sheep - 5 and 50 respectively - This was kept at the setup needed for testing the dogs as defined in the paper.
-
-### Ideal Implementation Design
-
-As this implementation does not evolve good behaviour for the dogs, I will go through what I think would be a more ideal solution. I would be unable to implement this as I lack the knowledge, time and understanding of both netlogo and GA's in the context of this scenario.
-
-To break down these issues I believe this scenario has a few challenges. One of them being that my representation deals with the dogs as individuals, instead of as a unit. As such, the solution should implement some kind of unified representation which is rewarded for the improvements in fitness across all dogs.
-
-The second problem is that it is hard to have a "population of solutions", as it is hard to run multiple simulations for different full sets of dog behaviours. As such, I just ended up using the individual dogs as my population, essentially pitting themselves against each other. This representation would use a simpler set of actions that lended itself more to crossover and mutation.
-
-To solve this, I think my simulation should store X number of full chromosomes representing all dogs in a pack, then the algorithm would take turns running each of these solutions for the cycle time. After which the fitness of that solution could be determined and the next one could be loaded in. After all of these solutions have been tested, then tournoment selection, crossover and mutation for these full solutions can take place and then the next "generation" can begin, with a stronger full set of behaviours. Upon completion of N generations of the algorithm, the individual with the best fitness would be the dog pack that is the best solution to the problem.
-
-This solution would aim to implement the following:
-
-* Adaptive mutation rates - Typical mutation rates apply mutation at the same rate to good chromosomes as it does to bad chromosomes. While the mutation can be seen as positive for the bad chromosome, it can be very harmful for some of the best chromosomes. To solve this issue, the mutation rate in this solution would be scaled depending on how good the fitness of the solution is, lowering the rate for high-quality solutions and increasing it for low-quality solutions.
-* Elitism - To hopefully speed up convergence of the algorithm I would employ elitism. This is a process where the most fit individuals in the generation are given a guaranteed place in the next generation without undergoing mutation. This has the benefit that these individuals' best traits are not lost to mutation and they have the chance to go on and produce better solutions through crossover.
-* Fitness sharing - In order to hopefully maintain variance and diversity in the population, the solution would use fitness sharing among each solution.This would involve calculating the similarity between two solutions with the hamming distance based on a given sharing radius. As part of the metaparameter exploration, I would attempt to evaluate a change in the sharing radius for the sharing function.
-
-While I am unsure how effective this proposed solution would be, I am confident that these methods and theory should produce a better solution that what my current genetic algorithm would.
-
-## 4. Design of evaluation procedure
-
-Throughout development of this solution I was using the graphs of average dog fitness and score to roughly guage the improvements of meta-parameter changes, implementation changes and more. However, this is not enough of a sound statistical argument to compare the effectiveness of the genetic algorithm vs the default behaviour.
-
-Therefore, to evaluate the performance of the evolved solution vs the default behaviour. I will be performing an independant samples t-test using the fitnesses of the trained dogs and the fitnesses of the untrained dogs after 1000 cycles (1 cycle = 100 ticks). Overall, if the algorithm has improved the fitness of the dogs through evolution we will be able to calculate a t-statistic to compare to the critical t-value and we can therefore see if there is a significant difference between the two population means, i.e. the evolution is effective vs the default behaviour.
-
-An independant t test was chosen because the agent data satisfies the conditions for a t-test. 1: The performance of the agents under the two algorithms (evolved and non-evolved) are independant of each other. 2: the data within each group is normally distributed, this can be checked by visual inspection or a Shapiro-Wilk test.
-
-Beyond this test, we will also be manually inspecting the graphs and output for the overall score to see the minimum and average scores that each solution achieves. Furthermore, in the experimental evaluation I will also comment on the overall stability of the algorithm in its rate of improvement, something that can be guaged by the graph.
-
-### Gathering data
-
-In order to perform the t-test we need to obtain the fitness of all five dogs after running their behaviour for 1000 cycles. For the evolved behaviour this gives the algorithm plenty of time to hopefully evolve some behaviour (although my implementation does not really improve this over time) and it gives the default behaviour the same amount of time to randomly walk. After these cycles we will pull out the fitness values for each dog. This gives us two groups of data to use in the test described below.
-
-### Performing the test
-
-We will be detemining if the test accepts or rejects the null hypothesis as below.
-
-1 - Define hypotheses
 The null hypothesis (H0) for the test states that there is no significant difference between the mean of the two groups.
+
 
 The alternative hypothesis (H1) states that there is a significant difference between the two population means.
 
-2 - Calculate mean, group sizes and standard deviation of the groups
 
-3 - Calculate the t-statistic
+2 - Calculate means, standard deviations and sample sizes:
 
-4 - Compare the t-statistic against the p value. If the t-test falls below the p value then we accept the null hypothesis, if it is above, then we reject the null hypothesis. If we reject it, then we can say that the algorithm significantly improves the performance.
 
-### Metaparameter evaluation using this evaluation procedure
+sample size of x1 = 5
 
-As I mentioned in the last section, it is hard to evaluate whether changes in metaparmeters have an impact on the final performance due to the fact that the evolution algorithm is not working. However, if my solution worked, I would go on to evaluate these changes imperically with the t-test method, comparing the previous evolved solution vs the evolved solution with the metaparameter change.
 
-## 5. Experimental evaluation
-Collect experimental evidence, carry out, and show the results of the evaluation
-procedure described above.
+sample size of x2 = 5
+
+
+mean of x1 = 1.310
+
+
+mean of x2 = 1.486
+
+
+std deviation of x1 = 0.105
+
+
+std deviation of x2 = 0.157
+
+
+3 - Calculate t-statistic
+
+
+t-stat = mean-of-x1 - mean-of-x2 / sqrt((std-dev-of-x1 / 5) + (std-dev-of-x2 / 5))
+
+
+t-stat = 2.08
+
+
+4 - Calculate degrees of freedom and p value
+
+
+df = n1 + n2 - 2 = 5 + 5 - 2 = 8
+
+
+p-value = 1.860 (looked up from t table, one-tailed at significance level 0.05)
+
+
+5 - Compare p value to t statistic
+
+
+The test statistic falls above the p value i.e. 2.08 > 1.86. Therefore we reject the null hypothesis as there is a significant difference between the mean of the two groups. Therefore we can say that the evolved behaviour can perform slightly better at least. However, this is overshadowed by the fact that you can inspect the dogs at work and easily verify that they are not getting better over time. As such, this significance can probably be put down to the power of the representation in its unevolved form being more capable than the random walk behaviour. 
 
 
 ### Conclusion
 
-Its clear that the implementation of this model was not up to scratch. So what could I have done better
 
-- The "roles" idea is likely too complex for a genetic algorithm
+It's clear that the implementation of this model was not up to scratch. So what could I have done better
+
+
+- The "roles" idea is likely too complex for a genetic algorithm or not well thought out enough
 - In the action implementation action such as chasing the nearest dog per tick leads to dogs repeatedly changing their closest target as they move. This led to indecisive dog behaviour when herding. With more time it may have been beneficial to rework this into an implementation that locked onto a chosen sheep for N cycles.
+- I needed to return to my fitness, mutation, crossover and hatching and determine how to better implement it to my representation to achieve actual improvement. This implementation could have also greatly benefited from more advanced techniques such as fitness sharing, niching etc.
+
 
 @#$#@#$#@
 default
@@ -1292,7 +1210,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.4.0
+NetLogo 6.3.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
