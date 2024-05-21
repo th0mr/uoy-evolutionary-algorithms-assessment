@@ -51,7 +51,6 @@ end
 
 to setup-chromosome
   set chromosome (list (random 4) (random 50) (random-float 2))
-  print chromosome
 end
 
 to go
@@ -71,7 +70,6 @@ to go
       endOfCycle
     ]
   ]
-
   tick
 
 end
@@ -433,8 +431,6 @@ to mutate-chromosome
   ]
 
   set chromosome mutated-chrom
-
-  print chromosome
 end
 
 ; let the top two breed
@@ -502,17 +498,17 @@ GRAPHICS-WINDOW
 24
 -24
 24
-1
-1
+0
+0
 1
 ticks
 30.0
 
 BUTTON
-148
-235
-211
-268
+61
+234
+124
+267
 NIL
 setup\n
 NIL
@@ -556,10 +552,10 @@ NIL
 HORIZONTAL
 
 BUTTON
-215
-235
-278
-268
+125
+234
+188
+267
 NIL
 go
 T
@@ -739,6 +735,23 @@ average-score
 1
 11
 
+BUTTON
+241
+234
+365
+267
+Run for 10k steps
+while [ticks <= 10000] [\n go\n]
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
 @#$#@#$#@
 # WHAT IS IT?
 
@@ -909,12 +922,25 @@ This solution would aim to implement the following:
 
 While I am unsure how effective this proposed solution would be, I am confident that these methods and theory should produce a better solution that what my current genetic algorithm would.
 
-## 4. Design of evaluation procedure [10 marks]
-Design and describe an evaluation procedure that allows you to compare the
-behaviour obtained through adaptation to the initial, non-adaptive behaviour, and
-draw conclusions that are grounded on sound statistical arguments.
+## 4. Design of evaluation procedure
 
-Choose statistical method for comparison. Statistical test e.g. t test
+Throughout development of this solution I was using the graphs of average dog fitness and score to roughly guage the improvements of meta-parameter changes, implementation changes and more. However, this is not enough of a sound statistical argument to compare the effectiveness of the genetic algorithm vs the default behaviour.
+
+Therefore, to evaluate the performance of the evolved solution vs the default behaviour. I will be performing an independant samples t-test using the fitnesses of the trained dogs and the fitnesses of the untrained dogs after 1000 cycles (1 cycle = 100 ticks). Overall, if the algorithm has improved the fitness of the dogs through evolution we will be able to calculate a t-statistic to compare to the critical t-value and we can therefore see if there is a significant difference between the two population means, i.e. the evolution is effective vs the default behaviour.
+
+An independant t test was chosen because the agent data satisfies the conditions for a t-test. 1: The performance of the agents under the two algorithms (evolved and non-evolved) are independant of each other. 2: the data within each group is normally distributed, this can be checked by visual inspection or a Shapiro-Wilk test.
+
+Beyond this test, we will also be manually inspecting the graphs and output for the overall score to see the minimum and average scores that each solution achieves. Furthermore, in the experimental evaluation I will also comment on the overall stability of the algorithm in its rate of improvement, something that can be guaged by the graph.
+
+### Gathering data
+
+In order to perform the t-test we need to obtain the fitness of all five dogs after running their behaviour for 1000 cycles. For the evolved behaviour this gives the algorithm plenty of time to hopefully evolve some behaviour (although my implementation does not really improve this over time) and it gives the default behaviour the same amount of time to randomly walk. After these cycles we will pull out the fitness values for each dog. This gives us two groups of data to use in the test described below.
+
+### Performing the test
+
+The null hypothesis (H0) for the test states that there is no significant difference between the mean of the two groups.
+
+The alternative hypothesis (H1) states that there is a significant difference between the two population means.
 
 ## 5. Experimental evaluation [5 marks]
 Collect experimental evidence, carry out, and show the results of the evaluation
@@ -927,7 +953,6 @@ Its clear that the implementation of this model was not up to scratch. So what c
 
 - The "roles" idea is likely too complex for a genetic algorithm
 - In the action implementation action such as chasing the nearest dog per tick leads to dogs repeatedly changing their closest target as they move. This led to indecisive dog behaviour when herding. With more time it may have been beneficial to rework this into an implementation that locked onto a chosen sheep for N cycles.
-
 
 @#$#@#$#@
 default
@@ -1235,7 +1260,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.3.0
+NetLogo 6.4.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
