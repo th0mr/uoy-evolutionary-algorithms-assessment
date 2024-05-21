@@ -476,6 +476,14 @@ to crossOver
     ]
   ]
 end
+
+to-report current-average-dog-fitnesses
+  let array []
+  ask dogs [
+   set array lput fitness array
+  ]
+  report array
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 412
@@ -545,7 +553,7 @@ initial-number-dogs
 initial-number-dogs
 0
 100
-5.0
+6.0
 1
 1
 NIL
@@ -588,7 +596,7 @@ crossover-probability
 crossover-probability
 0
 1
-0.45
+0.53
 0.01
 1
 NIL
@@ -751,6 +759,17 @@ NIL
 NIL
 NIL
 1
+
+MONITOR
+122
+722
+303
+767
+Current average dog fitnesses
+current-average-dog-fitnesses
+17
+1
+11
 
 @#$#@#$#@
 # WHAT IS IT?
@@ -922,15 +941,11 @@ This solution would aim to implement the following:
 
 While I am unsure how effective this proposed solution would be, I am confident that these methods and theory should produce a better solution that what my current genetic algorithm would.
 
-## 4. Design of evaluation procedure [10 marks]
-Design and describe an evaluation procedure that allows you to compare the
-behaviour obtained through adaptation to the initial, non-adaptive behaviour, and
-draw conclusions that are grounded on sound statistical arguments.
+## 4. Design of evaluation procedure
 
+Throughout development of this solution I was using the graphs of average dog fitness and score to roughly guage the improvements of meta-parameter changes, implementation changes and more. However, this is not enough of a sound statistical argument to compare the effectiveness of the genetic algorithm vs the default behaviour.
 
-Throughout development of this solution I was using the graphs of average dog fitness and score to roughly guage the improvements of meta-parameter changes, implementation changes and more. However, this is not enough of a sound statistical argument to compare the effectiveness of the genetic algorithm vs the default behaviour. As such we will emplo
-
-In order to evaluate the performance of the evolved solution vs the default behaviour. I will be performing an independant samples t-test using the fitnesses of the trained dogs and the fitnesses of the untrained dogs after 1000 cycles (1 cycle = 100 ticks). Overall, if the algorithm has improved the fitness of the dogs through evolution we will be able to calculate a t-statistic to compare to the critical t-value and we can therefore see if there is a significant difference between the two population means, i.e. the evolution is effective vs the default behaviour.
+Therefore, to evaluate the performance of the evolved solution vs the default behaviour. I will be performing an independant samples t-test using the fitnesses of the trained dogs and the fitnesses of the untrained dogs after 1000 cycles (1 cycle = 100 ticks). Overall, if the algorithm has improved the fitness of the dogs through evolution we will be able to calculate a t-statistic to compare to the critical t-value and we can therefore see if there is a significant difference between the two population means, i.e. the evolution is effective vs the default behaviour.
 
 An independant t test was chosen because the agent data satisfies the conditions for a t-test. 1: The performance of the agents under the two algorithms (evolved and non-evolved) are independant of each other. 2: the data within each group is normally distributed, this can be checked by visual inspection or a Shapiro-Wilk test.
 
@@ -942,11 +957,24 @@ In order to perform the t-test we need to obtain the fitness of all five dogs af
 
 ### Performing the test
 
+We will be detemining if the test accepts or rejects the null hypothesis as below.
+
+1 - Define hypotheses
 The null hypothesis (H0) for the test states that there is no significant difference between the mean of the two groups.
 
 The alternative hypothesis (H1) states that there is a significant difference between the two population means.
 
-## 5. Experimental evaluation [5 marks]
+2 - Calculate mean, group sizes and standard deviation of the groups
+
+3 - Calculate the t-statistic
+
+4 - Compare the t-statistic against the p value. If the t-test falls below the p value then we accept the null hypothesis, if it is above, then we reject the null hypothesis. If we reject it, then we can say that the algorithm significantly improves the performance.
+
+### Metaparameter evaluation using this evaluation procedure
+
+As I mentioned in the last section, it is hard to evaluate whether changes in metaparmeters have an impact on the final performance due to the fact that the evolution algorithm is not working. However, if my solution worked, I would go on to evaluate these changes imperically with the t-test method, comparing the previous evolved solution vs the evolved solution with the metaparameter change.
+
+## 5. Experimental evaluation
 Collect experimental evidence, carry out, and show the results of the evaluation
 procedure described above.
 

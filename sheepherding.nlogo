@@ -476,6 +476,14 @@ to crossOver
     ]
   ]
 end
+
+to-report current-average-dog-fitnesses
+  let array []
+  ask dogs [
+   set array lput fitness array
+  ]
+  report array
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 412
@@ -588,7 +596,7 @@ crossover-probability
 crossover-probability
 0
 1
-0.45
+0.53
 0.01
 1
 NIL
@@ -751,6 +759,17 @@ NIL
 NIL
 NIL
 1
+
+MONITOR
+122
+722
+303
+767
+Current average dog fitnesses
+current-average-dog-fitnesses
+17
+1
+11
 
 @#$#@#$#@
 # WHAT IS IT?
@@ -938,11 +957,24 @@ In order to perform the t-test we need to obtain the fitness of all five dogs af
 
 ### Performing the test
 
+We will be detemining if the test accepts or rejects the null hypothesis as below.
+
+1 - Define hypotheses
 The null hypothesis (H0) for the test states that there is no significant difference between the mean of the two groups.
 
 The alternative hypothesis (H1) states that there is a significant difference between the two population means.
 
-## 5. Experimental evaluation [5 marks]
+2 - Calculate mean, group sizes and standard deviation of the groups
+
+3 - Calculate the t-statistic
+
+4 - Compare the t-statistic against the p value. If the t-test falls below the p value then we accept the null hypothesis, if it is above, then we reject the null hypothesis. If we reject it, then we can say that the algorithm significantly improves the performance.
+
+### Metaparameter evaluation using this evaluation procedure
+
+As I mentioned in the last section, it is hard to evaluate whether changes in metaparmeters have an impact on the final performance due to the fact that the evolution algorithm is not working. However, if my solution worked, I would go on to evaluate these changes imperically with the t-test method, comparing the previous evolved solution vs the evolved solution with the metaparameter change.
+
+## 5. Experimental evaluation
 Collect experimental evidence, carry out, and show the results of the evaluation
 procedure described above.
 
